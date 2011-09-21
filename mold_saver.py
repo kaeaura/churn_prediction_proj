@@ -35,7 +35,7 @@ class Char():
 	"""
 	def __init__(self, cid):
 		# static
-		self.__name__ 			= "Char"
+		self.__name__			= "Char"
 		self.cid				= cid
 		self.account			= None
 		self.race				= None
@@ -423,7 +423,7 @@ def main(argv):
 						continue
 				if psender not in user_dict.keys() and not enable_exclusive:
 					user_dict[psender] = Char(psender)
-				if psender in user_dict.keys()
+				if psender in user_dict.keys():
 					user_dict[psender].speak_in_party(plen, pstamp)
 
 	if savefile is not None:
