@@ -8,7 +8,7 @@ import os
 import sys
 import time
 import getopt
-import pickle
+import cPickle
 
 __author__ = "Jing-Kai Lou (kaeaura@gmail.com)"
 
@@ -50,7 +50,6 @@ class Char():
 		self.telllisten			= defaultdict(list)
 		self.sellto				= defaultdict(set)
 		self.buyfrom			= defaultdict(set)
-
 
 	def set_account(self, account):
 		self.account = account
@@ -142,9 +141,12 @@ class Char():
 		subscription.update(self.buyfrom.keys())
 		return(subscription)
 
-	def get_subscription_range(self)
+	def get_subscription_range(self):
 		subscriptions = self.get_subscription()
-		return([self.int_to_date(min(subscription)), self.int_to_date(max(subscription))])
+		if len(subscriptions):
+			return([self.int_to_date(min(subscriptions)), self.int_to_date(max(subscriptions))])
+		else:
+			return(None, None)
 
 	def speaks_statistical_data(self, d):
 		"""
@@ -203,7 +205,7 @@ class Char():
 
 def main(argv):
 	try:
-		opts, args = getopt.getopt(argv, "hP:t:f:s:p:S:l:x", ["help", "save=", "load=", "exclusive"])
+		opts, args = getopt.getopt(argv, "hP:t:f:s:p:S:l:xg:", ["help", "save=", "load=", "exclusive"])
 	except getopt.GetoptError:
 		print ("The given arguments incorrect")
 		sys.exit(2)
@@ -217,6 +219,7 @@ def main(argv):
 	savefile = None
 	loadfile = None
 	enable_exclusive = False
+	group_size = 0
 
 	def usage():
 		print ("-h [--help] : print the usage")
@@ -226,8 +229,9 @@ def main(argv):
 		print ("-s ...: mold the say log")
 		print ("-p ...: mold the party log")
 		print ("-S [--save] ...: file to save the user-profiles")
-		print ("-l [--load] ...: load existing pickle-file")
+		print ("-l [--load] ...: load existing cPickle-file")
 		print ("-x [--exclusive]: exclusive mode; char without profiles will not be saved")
+		print ("-g ...: user number, split the saved files")
 
 	for opt, arg in opts:
 		if opt in ("-h", "--help"):
@@ -245,19 +249,25 @@ def main(argv):
 			party_log_file = arg
 		elif opt in ("-S", "--save"):
 			nf = arg.split('.')
-			if nf[-1] != "pickle":
-				savefile = arg + ".pickle"
+			if nf[-1] != "cPickle":
+				savefile = arg + ".cPickle"
 			else:
 				savefile = arg
 		elif opt in ("-l", "--load"):
 			loadfile = arg
 		elif opt in ("-x"):
 			enable_exclusive = True
+		elif opt in ("-g"):
+			try:
+				group_size = int(arg)
+			except ValueError:
+				print ("Arg Error: The group size error!")
+				sys.exit(2)
 
 	# get features from chat logs (tell, family, say, party)
 	if loadfile is not None and os.path.exists(loadfile):
 		print ("Loading the user dictionary")
-		user_dict = pickle.load(file(loadfile, "r"))
+		user_dict = cPickle.load(file(loadfile, "r"))
 	else:
 		print ("Creating the user dictionary")
 		user_dict	= dict()
@@ -439,9 +449,24 @@ def main(argv):
 
 	if savefile is not None:
 		print ("Saving file: %s" % savefile)
-		with open(savefile, 'w') as F:
-			pickle.dump(user_dict, F)
-		print ("Saving to %s" % savefile)
+		if group_size:
+			all_dict = user_dict.copy()	# replace user-dict by all_dict
+			user_dict = dict()
+			par_index = 1
+			while len(all_dict):
+				k, v = all_dict.popitem()
+				user_dict[k] = v
+				if len(user_dict) == group_size:
+					par_savefile = '.'.join(savefile.split('.')[:-1]) + '_part' + str(par_index) + '.cPickle'
+					par_index += 1
+					with open(par_savefile, 'w') as F:
+						cPickle.dump(user_dict, F)
+					print ("Saveing to %s" % par_savefile)
+					user_dict.clear()
+		else:
+			with open(savefile, 'w') as F:
+				cPickle.dump(user_dict, F)
+			print ("Saving to %s" % savefile)
 
 	return(0)
 

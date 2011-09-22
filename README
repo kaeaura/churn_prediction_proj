@@ -1,36 +1,56 @@
 trace:
-realm		users		actsize
-anderson	252917		9.7G
-alice		73275		219M
-mermaid		112087		2.3G
-doll		135910		4.2G
-green		211757		9.1G
-red			167876		5.3G
-wolf		189885		4.9G
+	# nyx
+	realm		users		actsize		range
+	alice		73275		219M		2003-11 ~ 2004-04
+	mermaid		112087		2.3G		2003-09 ~ 2004-05
+	doll		135910		4.2G		2003-04 ~ 2004-05
+	anderson	252917		9.7G		2003-03 ~ 2004-05
+	# baal
+	wolf		189885		4.9G		2003-03 ~ 2004-05
+	red			167876		5.3G		2003-03 ~ 2004-05
+	green		211757		9.1G		2003-03 ~ 2004-05
 
-commander:
-	Makefile
+data:
+	content in pickle: 
+		dictionary:
+			key: character-id
+			value: Char class [mold_saver.py] (Attribute + Activity + Events)
 
-trace_distiller:
-	ch_parser.awk
-	extraction.sh
-	get_trace.R
-	get_trace_path.R
-	header.sh
+	file table:
+				time slot
+				T1		T2		...
+		group
+		G1		G1T1	...
+		G2		...
 
-log_analyzer:
-	family_info.sh
-	getn_table.py
-	map_profile.awk
-	map_profile.sh
-	map_realm.py
-	mold_saver.py
-	mold_loader.py
+	action needed: 
+		- gbind: (G1T1 + G2T1) load two pickle files and zip the two dicts 
+		- update: (G1T1 + G1T2) load two pickle files and merge them
 
-function:
-	colset.sh
-	emotion_text_detection
-	train.r
+source:
+	commander:
+		Makefile
 
-resource:
-	realm.map.csv
+	trace_distiller:
+		ch_parser.awk
+		extraction.sh
+		get_trace.R
+		get_trace_path.R
+		header.sh
+
+	log_analyzer:
+		family_info.sh
+		getn_table.py
+		map_profile.awk
+		map_profile.sh
+		map_realm.py
+		mold_saver.py
+		mold_loader.py
+
+	function:
+		colset.sh
+		emotion_text_detection
+		train.r
+
+	resource:
+		realm.map.csv

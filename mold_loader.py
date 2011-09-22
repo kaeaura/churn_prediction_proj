@@ -1,13 +1,13 @@
 # Jing-Kai Lou (kaeaura@gmail.com) Tue Sep  6 11:52:23 CST 2011
-# This script load the pickle files dumped by mold_saver.py
+# This script load the cPickle files dumped by mold_saver.py
 
-from collection import defaultdict
+from collections import defaultdict
 from datetime import datetime, timedelta
 from mold_saver import Char
 import os
 import sys
 import getopt
-import pickle
+import cPickle
 
 __author__ = "Jing-Kai Lou (kaeaura@gmail.com)"
 
@@ -35,12 +35,17 @@ def main(argv):
 				usage()
 				sys.exit(2)
 
+	return(cPickle.load(open(loadfile, 'r')))
+
 if __name__ == "__main__":
 	profiles = main(sys.argv[1:])
 
 	# testing print
+	print ("Dictionary Len: %d" % len(profiles))
+	print ("Dictionary Type: %s" % type(profiles))
 	for user in profiles.keys():
-		print "==="
-		print "ID: ", user
-		#print "subscription range: %s %s" % "-".join(map(lambda x: str(x), profiles[user].deslen))
-		#print "tell con count: %d" % len(profiles[user].t_con_len)
+		print ("===")
+		print ("ID: %s" % user)
+		d, e = profiles[user].get_subscription_range()
+		print d, e
+

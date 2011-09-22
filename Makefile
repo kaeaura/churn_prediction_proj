@@ -29,6 +29,10 @@ CHANNELS = tell say family party
 clear:
 	rm -f *.pyc
 
+drop:
+	cd .. \
+	cp src ~/Dropbox/projects/churn_prediction_proj/
+
 # scan the trace/chat 
 scan:
 	ls -alR ${CHATTRACE_DIR} | grep ^- | gawk '{ print $$(NF) }' | sort > scan_result.csv 
