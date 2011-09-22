@@ -1,0 +1,36 @@
+trace:
+realm		users		actsize
+anderson	252917		9.7G
+alice		73275		219M
+mermaid		112087		2.3G
+doll		135910		4.2G
+green		211757		9.1G
+red			167876		5.3G
+wolf		189885		4.9G
+
+commander:
+	Makefile
+
+trace_distiller:
+	ch_parser.awk
+	extraction.sh
+	get_trace.R
+	get_trace_path.R
+	header.sh
+
+log_analyzer:
+	family_info.sh
+	getn_table.py
+	map_profile.awk
+	map_profile.sh
+	map_realm.py
+	mold_saver.py
+	mold_loader.py
+
+function:
+	colset.sh
+	emotion_text_detection
+	train.r
+
+resource:
+	realm.map.csv

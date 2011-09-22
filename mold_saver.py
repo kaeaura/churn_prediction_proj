@@ -12,22 +12,17 @@ import pickle
 
 __author__ = "Jing-Kai Lou (kaeaura@gmail.com)"
 
-def str_to_date(date_str):
-	if type(date_str) is int:
-		date_str = str(date_str)
+
+def str_to_idate(date_str):
 	try:
-		if len(date_str) >= 8:
-			s_year	= int(date_str[:4])
-			s_month	= int(date_str[4:6])
-			s_day	= int(date_str[6:8])
-			s_hour	= int(date_str[8:10]) if len(date_str) >= 10 else 0
-			return (datetime(year = s_year, month = s_month, day = s_day, hour = s_hour))
+		if len(date_str) >= 10:
+			return(int(date_str[:10]))
+		elif len(date_str) == 8:
+			return(int(date_str + '00'))
 		else:
-			print ("func:str_to_date:: length of time string is not long enough")
-			return (None)
+			return(None)
 	except ValueError:
-		print ('func:str_to_date:: time string is not a number')
-		return (None)
+		return(None)
 
 class Char():
 	"""
@@ -41,21 +36,21 @@ class Char():
 		self.race				= None
 		self.gender				= None
 		self.level				= None
-		# dynamic
+		# event
 		self.rank				= dict()
 		self.addedfriends		= set()
 		self.familyhistory		= dict()
-		self.talkto				= defaultdict(list)
-		self.listento			= defaultdict(list)
+		# activity
+		self.talkto				= defaultdict(set)
+		self.listento			= defaultdict(set)
 		self.familyspeaks		= defaultdict(list)
 		self.partyspeaks		= defaultdict(list)
 		self.sayspeaks			= defaultdict(list)
 		self.tellspeaks			= defaultdict(list)
 		self.telllisten			= defaultdict(list)
-		self.sellto				= defaultdict(list)
-		self.buyfrom			= defaultdict(list)
-		# to update
-		self.subscription		= set()
+		self.sellto				= defaultdict(set)
+		self.buyfrom			= defaultdict(set)
+
 
 	def set_account(self, account):
 		self.account = account
@@ -67,15 +62,14 @@ class Char():
 		self.gender = gender
 
 	def set_rank(self, family, rank):
-		self.rank[family] = rank
+		if family not in self.rank.keys():
+			self.rank[family] = rank
+		else:
+			self.rank[family] = max(rank, self.rank[family])
 
 	def set_level(self, level):
 		if self.level is None or self.level < level:
 			self.level = level
-
-	def update_subscription(self, time):
-		time = [time] if type(time) is not list else time
-		self.subscription.update(time)
 
 	def add_friends(self, friends):
 		if type(friends) in (set, list):
@@ -88,28 +82,23 @@ class Char():
 
 	def join_family(self, family, time):
 		if type(time) is not datetime:
-			time = str_to_date(time)
+			time = str_to_idate(time)
 		if family not in self.familyhistory.keys() or self.familyhistory[family] > time:
 			self.familyhistory[family] = time
-			self.update_subscription(time)
 
 	def join_families(self, families, times):
 		for family, time in zip(families, times):
 			self.join_family(family, time)
 
 	def talk_to_one(self, rid, time):
-		if time not in self.talkto.keys() or rid not in self.talkto[time]:
-			self.talkto[time].append(rid)
-			self.update_subscription(time)
+		self.talkto[time].add(rid)
 
 	def talk_to_them(self, rids, times):
 		for rid, time in zip(rids, times):
 			self.talk_to_one(rid, time)
 
 	def listen_to_one(self, sid, time):
-		if time not in self.listento.keys() or sid not in self.listento[time]:
-			self.listento[time].append(sid)
-			self.update_subscription(time)
+		self.listento[time].add(sid)
 
 	def listen_to_them(self, sids, times):
 		for sid, time in zip(sids, times):
@@ -117,23 +106,45 @@ class Char():
 
 	def speak_in_family(self, con, time):
 		self.familyspeaks[time].append(con)
-		self.update_subscription(time)
 
 	def speak_in_party(self, con, time):
 		self.partyspeaks[time].append(con)
-		self.update_subscription(time)
 
 	def speak_in_say(self, con, time):
 		self.sayspeaks[time].append(con)
-		self.update_subscription(time)
 
 	def speak_in_tell(self, con, time):
 		self.tellspeaks[time].append(con)
-		self.update_subscription(time)
 
 	def listen_in_tell(self, con, time):
 		self.telllisten[time].append(con)
-		self.update_subscription(time)
+
+	def int_to_date(date_int):
+		if date_int >= 10000000:
+			date_str 	= str(date_int)
+			s_year		= int(date_str[:4])
+			s_month		= int(date_str[4:6])
+			s_day		= int(date_str[6:8])
+			s_hour		= int(date_str[8:10])
+			return (datetime(year = s_year, month = s_month, day = s_day, hour = s_hour))
+		else:
+			print ("func:str_to_date:: length of time string is not long enough (10-digit)")
+			return (None)
+
+	def get_subscription(self):
+		subscription = set()
+		subscription.update(self.familyspeaks.keys())
+		subscription.update(self.partyspeaks.keys())
+		subscription.update(self.sayspeaks.keys())
+		subscription.update(self.tellspeaks.keys())
+		subscription.update(self.telllisten.keys())
+		subscription.update(self.sellto.keys())
+		subscription.update(self.buyfrom.keys())
+		return(subscription)
+
+	def get_subscription_range(self)
+		subscriptions = self.get_subscription()
+		return([self.int_to_date(min(subscription)), self.int_to_date(max(subscription))])
 
 	def speaks_statistical_data(self, d):
 		"""
@@ -157,7 +168,7 @@ class Char():
 			return([0] * 8)
 
 	def get_events(self, start, end):
-		pins		= [pin for pin in self.subscription if end >= pin >= start]
+		pins		= [pin for pin in self.get_subscription() if end >= pin >= start]
 		talkto		= dict(filter(lambda i: i[0] in pins, self.talkto.items()))
 		listento	= dict(filter(lambda i: i[0] in pins, self.listento.items()))
 		familyspeaks= dict(filter(lambda i: i[0] in pins, self.familyspeaks.items()))
@@ -315,7 +326,7 @@ def main(argv):
 				else:
 					tstamp, tsender, treceiver, tlen = record
 					try:
-						tstamp = str_to_date(tstamp)
+						tstamp = str_to_idate(tstamp)
 						tlen = int(tlen)
 						if tstamp is None:
 							print ("Wrong stamp")
@@ -352,7 +363,7 @@ def main(argv):
 				else:
 					fstamp, fname, fsender, flen = record
 					try:
-						fstamp = str_to_date(fstamp)
+						fstamp = str_to_idate(fstamp)
 						flen = int(flen)
 						if fstamp is None:
 							print ("Wrong stamp")
@@ -383,7 +394,7 @@ def main(argv):
 				else:
 					sstamp, ssender, slen = record
 					try:
-						sstamp = str_to_date(sstamp)
+						sstamp = str_to_idate(sstamp)
 						slen = int(slen)
 						if sstamp is None:
 							print ("Wrong stamp")
@@ -413,7 +424,7 @@ def main(argv):
 				else:
 					pstamp, psender, plen = record
 					try:
-						pstamp = str_to_date(pstamp)
+						pstamp = str_to_idate(pstamp)
 						plen = int(plen)
 						if pstamp is None:
 							print ("Wrong stamp")

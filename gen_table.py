@@ -147,8 +147,7 @@ def main(argv):
 		for cid, data in user_dict.items():
 			if len(data.subscription) :
 				# subscription length
-				d_date			= min(data.subscription)
-				e_date			= max(data.subscription)
+				d_date, e_date	= data.get_subscription_range()
 				des_len			= (e_date - d_date).total_seconds() / secs_in_day
 
 				# attributes
@@ -175,53 +174,6 @@ def main(argv):
 				F.write("%s\n" % outline)
 			else:
 				continue
-
-#		# character
-#		for cid, data in user_dict.items():
-#			if len(data.subscription) :
-#				# subscription length
-#				d_iDate			= min(data.subscription)
-#				d_date			= to_date(d_iDate)
-#				e_iDate			= max(data.subscription)
-#				e_date			= to_date(e_iDate)
-#				if type(d_date) is date and type(e_date) is date:
-#					des_len	= (e_date - d_date).days + 1
-#					if des_len < 10:
-#						continue
-#				else:
-#					des_len = None
-#					continue
-#
-#				# attributes
-#				account			= data.account
-#				gender			= data.gender
-#				race			= data.race
-#				level			= data.level
-#				all_attributes	= to_str([account, gender, race, level])
-#
-#				# activities in revealed period
-#				r_iDate			= intDate_addition(d_iDate, show_range)
-#				if r_iDate == 1:	#input error
-#					print ("%s :: %d" % (cid, d_iDate))
-#					continue
-#				acts_dict		= early_act(data, show_range)
-#				tValues			= to_str(speaks_statistical_data(acts_dict['tellspeaks']))
-#				sValues			= to_str(speaks_statistical_data(acts_dict['sayspeaks']))
-#				pValuse			= to_str(speaks_statistical_data(acts_dict['partyspeaks']))
-#				fValues			= to_str(speaks_statistical_data(acts_dict['familyspeaks']))
-#				all_activities	= to_str([d_iDate, r_iDate, tValues, sValues, pValuse, fValues])
-#
-#				# events
-#				familyRank		= len(filter(lambda x: x != 0, data.rank.values()))
-#				familyNum		= len(data.familyhistory)
-#				friendNum		= len(data.addedfriends)
-#				all_events		= to_str([familyRank, familyNum, friendNum])
-#
-#				outline = to_str([str(des_len), cid, all_attributes, all_activities, all_events])
-#				F.write("%s\n" % outline)
-#			else:
-#				continue
-
 
 	if enable_show:
 		print ("done")
