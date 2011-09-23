@@ -80,7 +80,7 @@ class Char():
 				print ('Friend list should be iteratiable')
 
 	def join_family(self, family, time):
-		if type(time) is not datetime:
+		if type(time) is not int:
 			time = str_to_idate(time)
 		if family not in self.familyhistory.keys() or self.familyhistory[family] > time:
 			self.familyhistory[family] = time
@@ -463,6 +463,10 @@ def main(argv):
 						cPickle.dump(user_dict, F)
 					print ("Saveing to %s" % par_savefile)
 					user_dict.clear()
+			par_savefile = '.'.join(savefile.split('.')[:-1]) + '_part' + str(par_index) + '.cPickle'
+			with open(par_savefile, 'w') as F:
+				cPickle.dump(user_dict, F)
+			print ("Saveing to %s" % par_savefile)
 		else:
 			with open(savefile, 'w') as F:
 				cPickle.dump(user_dict, F)

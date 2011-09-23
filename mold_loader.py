@@ -47,5 +47,10 @@ if __name__ == "__main__":
 		print ("===")
 		print ("ID: %s" % user)
 		d, e = profiles[user].get_subscription_range()
-		print d, e
+		print "Act. Period", d, e
+		j = min(profiles[user].familyhistory.values()) if len(profiles[user].familyhistory) else 0
+		print ("First Guild-joint date: %d" % j)
+		f = ';'.join(profiles[user].familyhistory.keys()) if len(profiles[user].familyhistory) else "None"
+		print ("Joined Guilds: %s" % f)
+		print ("Achieved Guild-Position: %s" % ';'.join(profiles[user].rank.values()))
 
