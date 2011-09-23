@@ -16,6 +16,8 @@ data:
 			key: character-id
 			value: Char class [mold_saver.py] (Attribute + Activity + Events)
 
+	group size: 30000 users
+	time-slot size: 1 month
 	file table:
 				time slot
 				T1		T2		...

@@ -118,7 +118,7 @@ class Char():
 	def listen_in_tell(self, con, time):
 		self.telllisten[time].append(con)
 
-	def int_to_date(date_int):
+	def int_to_date(self, date_int):
 		if date_int >= 10000000:
 			date_str 	= str(date_int)
 			s_year		= int(date_str[:4])

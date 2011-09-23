@@ -11,7 +11,8 @@
 #			- trace_path
 # 
 
-PROJ_DIR = /home/kae/trace/fairyland
+#PROJ_DIR = /home/kae/trace/fairyland
+PROJ_DIR = ..
 TRACE_DIR = ${PROJ_DIR}/trace
 DATA_DIR = ${PROJ_DIR}/distillation
 SRC_DIR = ${PROJ_DIR}/src
@@ -22,8 +23,10 @@ DATATRACE_DIR = ${TRACE_DIR}/data
 PATH_COLLECTION_DIR = ${DATA_DIR}/trace_path
 ACT_COLLECTION_DIR = ${DATA_DIR}/act_collections
 USER_COLLECTION_DIR = ${DATA_DIR}/user_collections
+FEATURE_DIR = ${DATA_DIR}/features
 # settings
-REALMS = alice anderson doll green mermaid red wolf
+#REALMS = alice anderson doll green mermaid red wolf
+REALMS = alice 
 CHANNELS = tell say family party 
 
 clear:
@@ -105,20 +108,43 @@ chparse: ch_parser.awk
 		done; \
 	done;
 
-# mold (get features extracted from *.parsed files) (TODO need for modictation)
+# mold (build the Char_profiles)
 mold: mold_saver.py
-	@for REALM in ${REALMS}; do \
-		for CHANNEL in ${CHANNELS}; do \
-			echo "mold-stage: $${REALM}; $${CHANNEL}"; \
-			TARGET=${ACT_COLLECTION_DIR}/$${REALM}_$${CHANNEL}; \
-			if [ -e $${TARGET}.parsed ]; then \
-				echo -n "Molding file: $${TARGET}"; \
-				python mold_saver.py -l $${CHANNEL} -i $${TARGET}.parsed -s $${TARGET}.feature ; \
-				echo " ...done"; \
-			else \
-				echo "file: $${TARGET}.parsed does not exist"; \
-			fi \
-		done; \
+	@MOLD_SIZE=30000 ; \
+	for REALM in ${REALMS} ; do \
+		USER_CSV=${USER_COLLECTION_DIR}/$${REALM}_user.csv ; \
+		USER_PICKLE=${FEATURE_DIR}/$${REALM}_P ; \
+		if [ -e $${USER_CSV} ] ; then \
+			echo "python mold_saver.py -P $${USER_CSV} -g $${MOLD_SIZE} -S $${USER_PICKLE}" ; \
+			python mold_saver.py -P $${USER_CSV} -g $${MOLD_SIZE} -S $${USER_PICKLE} ; \
+		else \
+			echo "file: $${USER_CSV} does not exist" ; \
+		fi ; \
+	done;
+
+# joint the events to the Char_profiles
+joint: mold_saver.py
+	for REALM in ${REALMS} ; do \
+		USER_PICKLS=`ls ${FEATURE_DIR}/$${REALM}_P*.cPickle`; \
+		for USER_PICKLE in $${USER_PICKLS} ; do \
+			for CHANNEL in ${CHANNELS} ; do \
+				echo "$${CHANNEL}" ; \
+				case $${CHANNEL} in \
+					"tell") OPT="-t";; \
+					"say") OPT="-s";; \
+					"family") OPT="-f";; \
+					"party") OPT="-p";;  \
+				esac ; \
+				ACT_CSVS=`ls ${ACT_COLLECTION_DIR}/$${REALM}_$${CHANNEL}.parsed_*` ; \
+				for ACT_CSV in $${ACT_CSVS} ; do \
+					echo "== $${ACT_CSV} =="; \
+					STAMP=`basename $${ACT_CSV} | sed 's/[^_]*_[^_]*_\([^_]*\)/\1/'`; \
+					echo " -- $${STAMP} --"; \
+					echo "python mold_saver.py -l $${USER_PICKLE} -x $${OPT} $${ACT_CSV} -S $${USER_PICKLE}$${OPT}_$${STAMP}" ; \
+					python mold_saver.py -l $${USER_PICKLE} -x $${OPT} $${ACT_CSV} -S $${USER_PICKLE}$${OPT}_$${STAMP} ; \
+				done ; \
+			done; \
+		done ; \
 	done;
 
 # time slice (suspend)
