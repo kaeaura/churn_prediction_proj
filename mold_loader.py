@@ -13,19 +13,81 @@ __author__ = "Jing-Kai Lou (kaeaura@gmail.com)"
 
 def main(argv):
 	try:
-		opts, args = getopt.getopt(argv, "hi:m:t", ["help"])
+		opts, args = getopt.getopt(argv, "hi:m:tw:", ["help"])
 	except getopt.GetoptError:
 		print ("The given arguments incorrect")
 
 	loadfile = None
 	mergingfiles = list()
 	enable_test = False
+	enable_write = False
 
 	def usage():
 		print ("-h : print the usage")
 		print ("-i ...: the loadfile")
 		print ("-t: show testing page")
-		print ("-m ...: merged files")
+		print ("-m ...: merged file")
+		print ("-w ...: write table to file")
+
+	def add(x, y):
+		return(x + y)
+
+	def paste(seperator, *args):
+		args = map(lambda  x: str(x), args)
+		return(seperator.join(args))
+
+	def write_table(outfile, user_dict, csv_sep = ","):
+		secs_in_day = 86400
+		with open(outfile, 'a') as F:
+			# writing header
+			predict_part	= "des_len"
+			id_part			= paste(csv_sep, "cid", "account", "gender", "race", "level")
+			tLValue_part	= paste(csv_sep, "tLSum", "tLMean", "tLMin", "tLMix")
+			tNValue_part	= paste(csv_sep, "tNSum", "tNMean", "tNMin", "tNMix")
+			tValue_part		= paste(csv_sep, tLValue_part, tNValue_part)
+			sLValue_part	= paste(csv_sep, "sLSum", "sLMean", "sLMin", "sLMix")
+			sNValue_part	= paste(csv_sep, "sNSum", "sNMean", "sNMin", "sNMix")
+			sValue_part		= paste(csv_sep, sLValue_part, sNValue_part)
+			pLValue_part	= paste(csv_sep, "pLSum", "pLMean", "pLMin", "pLMix")
+			pNValue_part	= paste(csv_sep, "pNSum", "pNMean", "pNMin", "pNMix")
+			pValue_part		= paste(csv_sep, pLValue_part, pNValue_part)
+			fLValue_part	= paste(csv_sep, "fLSum", "fLMean", "fLMin", "fLMix")
+			fNValue_part	= paste(csv_sep, "fNSum", "fNMean", "fNMin", "fNMix")
+			fValue_part		= paste(csv_sep, fLValue_part, fNValue_part)
+			attr_part		= paste(csv_sep, "dDay", "rDay", tValue_part, sValue_part, pValue_part, fValue_part)
+			event_part		= paste(csv_sep, "familyRank", "familyNum", "friendNum")
+			outheader		= paste(csv_sep, predict_part, id_part, attr_part, event_part)
+			F.write("%s\n" % outheader)
+
+			# writing data
+			for cid, data in user_dict.items():
+				# subscription length
+				d_date, e_date	= data.get_subscription_range()
+				if d_date is not None and e_date is not None:
+					des_len			= (e_date - d_date).total_seconds() / secs_in_day
+					# attributes
+					account			= data.account
+					gender			= data.gender
+					race			= data.race
+					level			= data.level
+					all_attributes	= paste(csv_sep, account, gender, race, level)
+					# activities in revealed period
+					#r_date			= d_date + timedelta(days = show_range)
+					s_int			= min(data.get_subscription())
+					r_int			= max(data.get_subscription())
+					values			= data.get_event_summary(s_int, r_int, 'tellspeaks', 'sayspeaks', 'partyspeaks', 'familyspeaks')
+					all_values		= reduce(add, map(lambda x: x[1], values))
+					all_activities	= csv_sep.join(str(x) for x in all_values)
+					# events
+					familyRank		= len(filter(lambda x: x != 0, data.rank.values()))
+					familyNum		= len(data.familyhistory)
+					friendNum		= len(data.addedfriends)
+					all_events		= paste(csv_sep, familyRank, familyNum, friendNum)
+				else:
+					continue
+
+				outline = paste(csv_sep, str(des_len), cid, all_attributes, all_activities, all_events)
+				F.write("%s\n" % outline)
 
 	for opt, arg in opts:
 		if opt in ("-h", "--help"):
@@ -41,11 +103,15 @@ def main(argv):
 			enable_test = True
 		elif opt in ("-m"):
 			mergingfiles.append(arg)
+		elif opt in ("-w"):
+			enable_write = True
+			outfile = arg
 
 	print ("Loading file: %s" % loadfile)
 	user_dict = cPickle.load(open(loadfile, 'r'))
 	print ("done")
 
+	# merge data
 	for mfile in mergingfiles:
 		if os.path.exists(mfile):
 			print ("Loading to-merge file: %s" % mfile)
@@ -67,25 +133,31 @@ def main(argv):
 		else:
 			print ("file : %s does not exist! so skipped." % mfile)
 
-	# testing print
+	# write tblae
+	if enable_write and len(user_dict):
+		print ("Writing file: %s" % outfile)
+		write_table(outfile = outfile, user_dict = user_dict)
+		print ("done")
+
+	# test print
 	if enable_test:
 		print ("Dictionary Len: %d" % len(user_dict))
 		print ("Dictionary Type: %s" % type(user_dict))
 		for user in user_dict.keys():
 			print ("===")
 			print ("ID: %s" % user)
-			if user_dict[user] is None:
+			profile = user_dict[user]
+			if profile is None:
 				print ("!!! %s" % user)
 			else:
-				d, e = user_dict[user].get_subscription_range()
+				d, e = profile.get_subscription_range()
 				print "Act. Period", d, e
-				j = min(user_dict[user].familyhistory.values()) if len(user_dict[user].familyhistory) else 0
+				j = min(profile.familyhistory.values()) if len(profile.familyhistory) else 0
 				print ("First Guild-joint date: %d" % j)
-				f = ';'.join(user_dict[user].familyhistory.keys()) if len(user_dict[user].familyhistory) else "None"
+				f = ';'.join(profile.familyhistory.keys()) if len(profile.familyhistory) else "None"
 				print ("Joined Guilds: %s" % f)
-				print ("Achieved Guild-Position: %s" % ';'.join(user_dict[user].rank.values()))
+				print ("Achieved Guild-Position: %s" % ';'.join(profile.rank.values()))
 
 if __name__ == "__main__":
 	main(sys.argv[1:])
-
 
