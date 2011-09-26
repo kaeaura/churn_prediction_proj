@@ -51,6 +51,23 @@ class Char():
 		self.sellto				= defaultdict(set)
 		self.buyfrom			= defaultdict(set)
 
+	def update(self, C):
+		if C.__name__ == "Char":
+			self.rank.update(C.rank)
+			self.addedfriends.update(C.addedfriends)
+			self.familyhistory.update(C.familyhistory)
+			self.talkto.update(C.talkto)
+			self.listento.update(C.listento)
+			self.familyspeaks.update(C.familyspeaks)
+			self.partyspeaks.update(C.partyspeaks)
+			self.sayspeaks.update(C.sayspeaks)
+			self.tellspeaks.update(C.tellspeaks)
+			self.telllisten.update(C.telllisten)
+			self.sellto.update(C.sellto)
+			self.buyfrom.update(C.buyfrom)
+		else:
+			print ("!!!")
+
 	def set_account(self, account):
 		self.account = account
 
@@ -263,6 +280,7 @@ def main(argv):
 			except ValueError:
 				print ("Arg Error: The group size error!")
 				sys.exit(2)
+
 
 	# get features from chat logs (tell, family, say, party)
 	if loadfile is not None and os.path.exists(loadfile):

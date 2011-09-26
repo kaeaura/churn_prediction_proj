@@ -26,21 +26,27 @@ data:
 		G2		...
 
 	action needed: 
-		- gbind: (G1T1 + G2T1) load two pickle files and zip the two dicts 
+		- bind: (G1T1 + G2T1) load two pickle files and zip the two dicts 
 		- update: (G1T1 + G1T2) load two pickle files and merge them
 
 source:
 	commander:
 		Makefile
 
-	trace_distiller:
+	trace_distiller: dig the information from trace and write them in log
 		ch_parser.awk
 		extraction.sh
 		get_trace.R
 		get_trace_path.R
-		header.sh
+		map_realm.py
+		header.sh:
+			find the *.o file in trace and return the head line
+		profile_parser.py:
+			parser for the *.o trace-files
+		profile_parser_batch.sh
+			parser for the *.o trace-files in a batch
 
-	log_analyzer:
+	log_analyzer: fetch or rebuild the information from the log
 		family_info.sh
 		getn_table.py
 		map_profile.awk
@@ -49,7 +55,7 @@ source:
 		mold_saver.py
 		mold_loader.py
 
-	function:
+	function: utility
 		colset.sh
 		emotion_text_detection
 		train.r

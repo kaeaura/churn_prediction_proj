@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from mold_saver import Char
 import os
 import sys
-import pickle
+import cPickle
 import getopt
 
 __author__ = "Jing-Kai Lou (kaeaura@gmail.com)"
@@ -67,39 +67,9 @@ def main(argv):
 	# loading the features (pickle file)
 	if enable_show:
 		print (" Loading files")
-	user_dict = pickle.load(file(picklefile, 'r'))
+	user_dict = cPickle.load(file(picklefile, 'r'))
 	if enable_show:
 		print (" done")
-
-	# function for extraction
-	def early_act(char, delta):
-		"""
-			char: Char class, user-profile
-			delta: unit days
-			output the act only in early period as a dictionary
-		"""
-		return(char.get_events(min(char.subscription) + timedelta(days = delta)))
-
-	def speaks_statistical_data(d):
-		"""
-			d as the speaks dict in class Char
-		"""
-		if len(d):
-			speak_len_list	= [sum(speak_list) for speak_list in d.values()]
-			speak_num_list	= [len(speak_list) for speak_list in d.values()]
-			sl_Sum			= sum(speak_len_list)
-			sl_Mean			= float(sl_Sum) / len(speak_len_list)
-			sl_Max			= max(speak_len_list)
-			sl_Min			= min(speak_len_list)
-			sl_arr			= [sl_Sum, sl_Mean, sl_Max, sl_Min]
-			sn_Sum			= sum(speak_num_list)
-			sn_Mean			= float(sn_Sum) / len(speak_num_list)
-			sn_Max			= max(speak_num_list)
-			sn_Min			= min(speak_num_list)
-			sn_arr			= [sn_Sum, sn_Mean, sn_Max, sn_Min]
-			return(sl_arr + sn_arr)
-		else:
-			return([0] * 8)
 
 	# outputing
 	outdir = os.path.dirname(outfile)

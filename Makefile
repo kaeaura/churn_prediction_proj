@@ -24,10 +24,12 @@ PATH_COLLECTION_DIR = ${DATA_DIR}/trace_path
 ACT_COLLECTION_DIR = ${DATA_DIR}/act_collections
 USER_COLLECTION_DIR = ${DATA_DIR}/user_collections
 FEATURE_DIR = ${DATA_DIR}/features
+FEATURE_PART_DIR = ${FEATURE_DIR}/parts
 # settings
 #REALMS = alice anderson doll green mermaid red wolf
-REALMS = alice 
-CHANNELS = tell say family party 
+REALMS = doll
+#CHANNELS = tell say family party 
+CHANNELS = say
 
 clear:
 	rm -f *.pyc
@@ -124,9 +126,11 @@ mold: mold_saver.py
 
 # joint the events to the Char_profiles
 joint: mold_saver.py
+	JLOG='../joint_command_history.log'; \
 	for REALM in ${REALMS} ; do \
-		USER_PICKLS=`ls ${FEATURE_DIR}/$${REALM}_P*.cPickle`; \
+		USER_PICKLS=`ls ${FEATURE_DIR}/$${REALM}_P_part*.cPickle`; \
 		for USER_PICKLE in $${USER_PICKLS} ; do \
+			USER_PICKLE_BASENAME=`basename $${USER_PICKLE}` ; \
 			for CHANNEL in ${CHANNELS} ; do \
 				echo "$${CHANNEL}" ; \
 				case $${CHANNEL} in \
@@ -137,11 +141,15 @@ joint: mold_saver.py
 				esac ; \
 				ACT_CSVS=`ls ${ACT_COLLECTION_DIR}/$${REALM}_$${CHANNEL}.parsed_*` ; \
 				for ACT_CSV in $${ACT_CSVS} ; do \
-					echo "== $${ACT_CSV} =="; \
 					STAMP=`basename $${ACT_CSV} | sed 's/[^_]*_[^_]*_\([^_]*\)/\1/'`; \
-					echo " -- $${STAMP} --"; \
-					echo "python mold_saver.py -l $${USER_PICKLE} -x $${OPT} $${ACT_CSV} -S $${USER_PICKLE}$${OPT}_$${STAMP}" ; \
-					python mold_saver.py -l $${USER_PICKLE} -x $${OPT} $${ACT_CSV} -S $${USER_PICKLE}$${OPT}_$${STAMP} ; \
+					echo "== $${ACT_CSV} ==" >> $${JLOG} ; \
+					echo "python mold_saver.py -l $${USER_PICKLE} -x $${OPT} $${ACT_CSV} -S ${FEATURE_PART_DIR}/$${CHANNEL}/$${USER_PICKLE_BASENAME}$${OPT}_$${STAMP}" >> $${JLOG} ; \
+					test -e "${FEATURE_PART_DIR}/$${CHANNEL}" || mkdir -p ${FEATURE_PART_DIR} ; \
+					if [ -e ${FEATURE_PART_DIR}/$${CHANNEL}/$${USER_PICKLE_BASENAME}$${OPT}_$${STAMP}.cPickle ] ; then \
+						echo "File exists, so skipped for not overwriting" ; \
+					else \
+						python mold_saver.py -l $${USER_PICKLE} -x $${OPT} $${ACT_CSV} -S ${FEATURE_PART_DIR}/$${CHANNEL}/$${USER_PICKLE_BASENAME}$${OPT}_$${STAMP} ; \
+					fi \
 				done ; \
 			done; \
 		done ; \
@@ -164,5 +172,3 @@ parse: ${ACT_COLLECTION_DIR}/ anonymize.awk
 			sort ${ACT_COLLECTION_DIR}/$${TARGET}.parsed > ${ACT_COLLECTION_DIR}/$${TARGET}.parsed.sorted ; \
 		done ; \
 	done
-
-
