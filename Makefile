@@ -27,9 +27,8 @@ FEATURE_DIR = ${DATA_DIR}/features
 FEATURE_PART_DIR = ${FEATURE_DIR}/parts
 # settings
 #REALMS = alice anderson doll green mermaid red wolf
-REALMS = doll
-#CHANNELS = tell say family party 
-CHANNELS = say
+REALMS = alice mermaid
+CHANNELS = tell say party family 
 
 clear:
 	rm -f *.pyc
@@ -154,6 +153,21 @@ joint: mold_saver.py
 			done; \
 		done ; \
 	done;
+
+# make table
+table: mold_loader.py
+	for REALM in ${REALMS} ; do \
+		OPTS="";\
+		for CHANNEL in ${CHANNELS} ; do \
+			MPATH=${FEATURE_PART_DIR}/$${CHANNEL} ; \
+			MFILES=`ls $${MPATH}/$${REALM}_*` ; \
+			for MFILE in $${MFILES} ; do \
+				test -e $${MFILE} && OPTS="$${OPTS} -m $${MFILE}" || echo "$${MFILE} doesnt exist"; \
+			done ; \
+		done ; \
+		echo "python mold_loader.py $${OPTS} -w ../exp/$${REALM}_activity.csv" ; \
+		python mold_loader.py $${OPTS} -w ../exp/$${REALM}_activity.csv ; \
+	done
 
 # time slice (suspend)
 parse: ${ACT_COLLECTION_DIR}/ anonymize.awk

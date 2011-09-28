@@ -38,10 +38,11 @@ def main(argv):
 
 	def write_table(outfile, user_dict, csv_sep = ","):
 		secs_in_day = 86400
-		with open(outfile, 'a') as F:
+		with open(outfile, 'w') as F:
 			# writing header
-			predict_part	= "des_len"
+			predict_part	= "sub_len"
 			id_part			= paste(csv_sep, "cid", "account", "gender", "race", "level")
+			owl_part		= paste(csv_sep, "t_stream", "s_stream", "p_stream", "f_stream", "all_stream")
 			tLValue_part	= paste(csv_sep, "tLSum", "tLMean", "tLMin", "tLMix")
 			tNValue_part	= paste(csv_sep, "tNSum", "tNMean", "tNMin", "tNMix")
 			tValue_part		= paste(csv_sep, tLValue_part, tNValue_part)
@@ -56,7 +57,7 @@ def main(argv):
 			fValue_part		= paste(csv_sep, fLValue_part, fNValue_part)
 			attr_part		= paste(csv_sep, "dDay", "rDay", tValue_part, sValue_part, pValue_part, fValue_part)
 			event_part		= paste(csv_sep, "familyRank", "familyNum", "friendNum")
-			outheader		= paste(csv_sep, predict_part, id_part, attr_part, event_part)
+			outheader		= paste(csv_sep, predict_part, id_part, owl_part, attr_part, event_part)
 			F.write("%s\n" % outheader)
 
 			# writing data
@@ -71,8 +72,17 @@ def main(argv):
 					race			= data.race
 					level			= data.level
 					all_attributes	= paste(csv_sep, account, gender, race, level)
+					# act_hours
+					def get_stream(char, channel):
+						counts			= char.get_owls(channel).items()
+						counts.sort(key = lambda x: x[0])
+						return(':'.join(map(lambda x: str(x[1]), counts)))
+					t_stream		= get_stream(data, 'tellspeaks')
+					s_stream		= get_stream(data, 'sayspeaks')
+					p_stream		= get_stream(data, 'partyspeaks')
+					f_stream		= get_stream(data, 'familyspeaks')
+					streams			= paste(csv_sep, t_stream, s_stream, p_stream, f_stream)
 					# activities in revealed period
-					#r_date			= d_date + timedelta(days = show_range)
 					s_int			= min(data.get_subscription())
 					r_int			= max(data.get_subscription())
 					values			= data.get_event_summary(s_int, r_int, 'tellspeaks', 'sayspeaks', 'partyspeaks', 'familyspeaks')
@@ -86,7 +96,7 @@ def main(argv):
 				else:
 					continue
 
-				outline = paste(csv_sep, str(des_len), cid, all_attributes, all_activities, all_events)
+				outline = paste(csv_sep, str(des_len), cid, all_attributes, streams, all_activities, all_events)
 				F.write("%s\n" % outline)
 
 	for opt, arg in opts:
@@ -107,9 +117,14 @@ def main(argv):
 			enable_write = True
 			outfile = arg
 
-	print ("Loading file: %s" % loadfile)
-	user_dict = cPickle.load(open(loadfile, 'r'))
-	print ("done")
+	if loadfile is not None and os.path.exists(loadfile):
+		print ("Loading file: %s" % loadfile)
+		user_dict = cPickle.load(open(loadfile, 'r'))
+		print ("done")
+	else:
+		print ("Initial user_dict")
+		user_dict = dict()
+		print ("done")
 
 	# merge data
 	for mfile in mergingfiles:
@@ -157,6 +172,8 @@ def main(argv):
 				f = ';'.join(profile.familyhistory.keys()) if len(profile.familyhistory) else "None"
 				print ("Joined Guilds: %s" % f)
 				print ("Achieved Guild-Position: %s" % ';'.join(profile.rank.values()))
+				c = profile.get_owls()
+				print ("Acts in Hours %s" % "::".join([str(v) for v in c.values()]))
 
 if __name__ == "__main__":
 	main(sys.argv[1:])

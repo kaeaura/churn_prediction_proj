@@ -158,6 +158,37 @@ class Char():
 		subscription.update(self.buyfrom.keys())
 		return(subscription)
 
+	def get_owls(self, *args):
+		"""
+			for night-owl detection
+		"""
+		bins = map(lambda x: "%02d" % x, range(24))
+		counts = dict().fromkeys(bins, 0)
+		def get_hour(x): return(str(x)[-2:] if len(str(x)) == 10 else '123')
+
+		items = list()
+		if ('familyspeaks' in args):
+			items.extend(self.familyspeaks.items())
+		if ('partyspeaks' in args):
+			items.extend(self.partyspeaks.items())
+		if ('sayspeaks' in args):
+			items.extend(self.sayspeaks.items())
+		if ('tellspeaks' in args):
+			items.extend(self.tellspeaks.items())
+		if ('telllisten' in args):
+			items.extend(self.telllisten.items())
+		if ('sellto' in args):
+			items.extend(self.sellto.items())
+		if ('buyfrom' in args):
+			items.extend(self.buyfrom.items())
+
+		# loop through 
+		for item in items:
+			k, v = item
+			if get_hour(k) in bins and type(v) is list:
+				counts[get_hour(k)] += len(v)
+		return(counts)
+
 	def get_subscription_range(self):
 		subscriptions = self.get_subscription()
 		if len(subscriptions):
