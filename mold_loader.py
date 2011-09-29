@@ -1,5 +1,6 @@
 # Jing-Kai Lou (kaeaura@gmail.com) Tue Sep  6 11:52:23 CST 2011
 # This script load the cPickle files dumped by mold_saver.py
+# And then give a testing or orginized output
 
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -159,7 +160,7 @@ def main(argv):
 		print ("Dictionary Len: %d" % len(user_dict))
 		print ("Dictionary Type: %s" % type(user_dict))
 		for user in user_dict.keys():
-			print ("===")
+			print ("++++++++++++++++++++++++++++++++++++")
 			print ("ID: %s" % user)
 			profile = user_dict[user]
 			if profile is None:

@@ -1,38 +1,13 @@
 # Jing-Kai Lou (kaeaura@gmail.com)
+# Wed Sep 28 15:51:39 CST 2011
+source('included.R')
 if (file.exists('my.fig.R')) source('my.fig.R')
 
 argv = commandArgs(TRUE)
 argc = length(argv)
 
-thread = 300
+fig_dir = '../fig'
 top_number = 1:9
-
-find_extension <- function(filename) {
-	if (class(filename) == "character" && length(filename) == 1) {
-		split_filename = strsplit(filename, '.', fixed = T)[[1]]
-		if (length(split_filename) > 1) {
-			return(split_filename[length(split_filename)])
-		}else{
-			cat("contains no exe")
-			return(NULL)
-		}
-	}
-}
-
-replace_extention <- function(filename, replacing) {
-	original_extension = find_extension(filename)
-	if (!is.null(original_extension)) {
-		return(sub(sprintf('%s$', original_extension), replacing, filename))
-	} else {
-		return(1)
-	}
-}
-
-stream_sum <- function(string, s_sep = ":") {
-	# 1:2:3 --> 1 + 2 + 3 = 6
-	stopifnot (class(string) == "character" && length(string) == 1) 
-	return (sapply(strsplit(string, s_sep), function(x) sum(as.integer(x))))
-}
 
 to_stream <- function(string, s_sep = ":") {
 	# 1:2:3 --> c(1, 2, 3)
@@ -59,10 +34,15 @@ for (arg in argv) {
 			show.df = stream.df[order(stream.df$tc, decreasing = T)[top_number], ]
 
 			# plotting
+			fig_name = paste('stream', basename(arg), sep = '_')
+			if (!file.exists(fig_dir)) dir.create(fig_dir)
+
 			if (exists('my.fig')) {
-				my.fig(replace_extention(paste('stream', basename(arg), sep='_'), ''), 3, ceiling(length(top_number)/3))
+				fig_name = file.path(fig_dir, replace_extention(fig_name, ''))
+				my.fig(fig_name, 3, ceiling(length(top_number)/3))
 			} else {
-				postscript (replace_extention(paste('stream', basename(arg), sep='_'), 'eps'), width = 800, height = 600)
+				fig_name = file.path(fig_dir, replace_extention(fig_name, '.eps'))
+				postscript (fig_name, width = 800, height = 600)
 				par(mfrow = c(3, ceiling(length(top_number)/3)))
 			}
 
@@ -95,6 +75,8 @@ for (arg in argv) {
 			} else {
 				my.fig.off()
 			}
+
+			cat(sprintf('fig: %s is done\n', fig_name))
 
 		} else {
 			cat(sprintf("No %s column", col_name))
