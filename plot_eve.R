@@ -2,7 +2,7 @@
 # Wed Sep 28 15:50:40 CST 2011
 # This script analyze the attributes in gender
 require('ggplot2')
-if (file.exists('my.fig.R')) source('my.fig.R')
+source('my.fig.R')
 source('included.R')
 
 # testing argv: ../exp/alice_activity.csv
@@ -10,7 +10,6 @@ source('included.R')
 
 argv = commandArgs(TRUE)
 argc = length(argv)
-
 
 fig_dir = '../fig'
 

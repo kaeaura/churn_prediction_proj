@@ -12,7 +12,6 @@ import cPickle
 
 __author__ = "Jing-Kai Lou (kaeaura@gmail.com)"
 
-
 def str_to_idate(date_str):
 	try:
 		if len(date_str) >= 10:
