@@ -120,19 +120,34 @@ class Char():
 			self.listen_to_one(sid, time)
 
 	def speak_in_family(self, con, time):
-		self.familyspeaks[time].append(con)
+		if type(con) is list:
+			self.speak_in_family.extend(con)
+		else:
+			self.familyspeaks[time].append(con)
 
 	def speak_in_party(self, con, time):
-		self.partyspeaks[time].append(con)
+		if type(con) is list:
+			self.partyspeaks[time].extend(con)
+		else:
+			self.partyspeaks[time].append(con)
 
 	def speak_in_say(self, con, time):
-		self.sayspeaks[time].append(con)
+		if type(con) is list:
+			self.sayspeaks[time].extend(con)
+		else:
+			self.sayspeaks[time].append(con)
 
 	def speak_in_tell(self, con, time):
-		self.tellspeaks[time].append(con)
+		if type(con) is list:
+			self.tellspeaks[time].extend(con)
+		else:
+			self.tellspeaks[time].append(con)
 
 	def listen_in_tell(self, con, time):
-		self.telllisten[time].append(con)
+		if type(con) is list:
+			self.telllisten[time].extend(con)
+		else:
+			self.telllisten[time].append(con)
 
 	def int_to_date(self, date_int):
 		if date_int >= 10000000:
@@ -385,7 +400,7 @@ def main(argv):
 					tstamp, tsender, treceiver, tlen = record
 					try:
 						tstamp = str_to_idate(tstamp)
-						tlen = int(tlen)
+						tlen = map(lambda x: int(x), tlen.split('-'))
 						if tstamp is None:
 							print ("Wrong stamp")
 							continue
@@ -422,7 +437,7 @@ def main(argv):
 					fstamp, fname, fsender, flen = record
 					try:
 						fstamp = str_to_idate(fstamp)
-						flen = int(flen)
+						flen = map(lambda x: int(x), flen.split('-'))
 						if fstamp is None:
 							print ("Wrong stamp")
 							continue
@@ -453,7 +468,7 @@ def main(argv):
 					sstamp, ssender, slen = record
 					try:
 						sstamp = str_to_idate(sstamp)
-						slen = int(slen)
+						slen = map(lambda x: int(x), slen.split('-'))
 						if sstamp is None:
 							print ("Wrong stamp")
 							continue
@@ -483,7 +498,7 @@ def main(argv):
 					pstamp, psender, plen = record
 					try:
 						pstamp = str_to_idate(pstamp)
-						plen = int(plen)
+						plen = map(lambda x: int(x), plen.split('-'))
 						if pstamp is None:
 							print ("Wrong stamp")
 							continue

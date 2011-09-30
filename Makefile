@@ -26,8 +26,7 @@ USER_COLLECTION_DIR = ${DATA_DIR}/user_collections
 FEATURE_DIR = ${DATA_DIR}/features
 FEATURE_PART_DIR = ${FEATURE_DIR}/parts
 # settings
-#REALMS = alice anderson doll green mermaid red wolf
-REALMS = alice mermaid
+REALMS = alice mermaid anderson doll green red wolf
 CHANNELS = tell say party family 
 
 clear:
@@ -108,6 +107,16 @@ chparse: ch_parser.awk
 			fi \
 		done; \
 	done;
+
+# compact the parsed trace
+compact: log_compactor.awk log_chopper.awk
+	@for REALM in ${REALMS}; do \
+		for CHANNEL in ${CHANNELS}; do \
+			echo "chcompact-stage: $${REALM}; $${CHANNEL}"; \
+			TARGET=${ACT_COLLECTION_DIR}/$${REALM}_$${CHANNEL}.parsed; \
+			test -e $${TARGET} && gawk -f log_compactor.awk $${TARGET} > $${TARGET}.c; mv $${TARGET}.c $${TARGET}; gawk -f log_chopper.awk -v unit="month" -v c=1 $${TARGET} ; \
+		done; \
+	done
 
 # mold (build the Char_profiles)
 mold: mold_saver.py
