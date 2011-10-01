@@ -121,7 +121,7 @@ class Char():
 
 	def speak_in_family(self, con, time):
 		if type(con) is list:
-			self.speak_in_family.extend(con)
+			self.familyspeaks[time].append(con)
 		else:
 			self.familyspeaks[time].append(con)
 
