@@ -1,14 +1,119 @@
+Meetings:
+	- 2011/09/30 
+		- 問題逐一回答, 以題目命名圖檔
+		- CDF
+		- 夜貓指數 (11 ~ 04)
+		- p-value
+	- 2011/10/07
+		- CCDF, log-log
+		- gender with time effect *
+		- realm size normalization (with observation period lenght) *
+		- Chi-Square test *
+
+Goal
+
+	- In-game features
+		- Relation between character gender and character race among realms
+		- Relation between character gender and character level among realms
+		- Relation between character gender and character level among realms
+
+	- 遊戲中角色性別與種族之間的關聯
+			- In-Game Observation: 兩兩相互比較
+				- Avatar characteristic
+					- population
+						- population growth or decay over time?
+					- gender 
+						- gender ratio balance? (chisq.test)
+							- imbalance, # male char. > # female char.
+						- ratio in each realm equal? (prop.test)
+							- barely eqaul
+						- gender ratio changes significatntly over time? 
+							- female char. increases but not significantly
+					- race
+						- race ratio balance? (chisq.test)
+						- ratio in each realm equal? (prop.test)
+						- gender ratio changes significatntly over time?
+					- level
+					- time: joined time, subscription length
+					- guild (bool)
+					- world: time, observation length, population
+				- Figure
+					- figure 1: population over time:
+					- figure 2: gender ratio (over realm)
+						- consistency in different realm (in all game)
+					- race ratio (over realm)
+						- consistency in different realm (in all game)
+					- gender in race (over realm)
+						- consistency in different realm (in all game)
+					- level distribution in gender (over realm)
+						- consistency in different realm (in all game)
+						- will the gender of character affect the leveling?
+						- not much (how to test, the distribution similarity?)
+					- level distribution in race (over realm)
+						- will the race of character affect the leveling?
+						- not much
+					- 
+			- Out-Game Infer.
+				- Player characteristic
+					- Nigth Owl
+					- Addiction
+				- Cross Validation
+					- Player real data
+						- city vs outtown
+						- age
+						- gender
+			- Single Interaction
+				- Channel (4)
+				- Trade (2)
+				- Guild Post (?)
+			- World Culture
+				- vs out-game infer.
+				- vs in-game properties
+		- Structure Needed:
+			- section name! section question! significatnt section conclusion!
+analysis:
+gender issue
+	In overview, male characters number is greater then female character number
+	Male ratio in six realms:
+		alice, 57.4%
+		anderson, 65.5%
+		doll, 65.0%
+		* mermaid, 53.4% (smallest)
+		red, 57.5%
+		* wolf, 68.2% (largest)
+	The cumulative ratio over time in six realms:
+		alice, male strictly decreases from 59.3% to 57.4% (-1.9%)
+		anderson, male decreases from 67.8% to 65.5% (-2.2%)
+		* doll, male decreases from 67.7% to 65.0% (-2.7%) (largest decreasement)
+		* mermaid, male stay low 53.4% (0%)
+		red, male decreases from 60.0% to 57.5% (-2.5%)
+		wolf, male decreases from 71.2% to 68.2% (-2%)
+
+race issue
+	In overview, human is the largest race , elf is the second large race, and dwarf is the smallest race. Average speaking, the ratio for human, elf, and drawf would be 5:3:2 respectively. The population in elf is slightly fading out over time.
+
+	Elf population declines
+		alice, 30.5% to 30.4%
+		anderson, 32.9% to 29.1%
+		doll, 32.1% to 28.6%
+		mermaid 33.0% to 30.3%
+		red 32.6% to 30.6%
+		wolf, 32.1% to 28.5%
+
+gender vs race issue:
+	gender ratio in elf race is the most balance, and the male ratio is relative higher in human race and drawf race. Interestingly, the female ratio in elf declines overtime.
+
 trace:
 	# nyx
-	realm		users		actsize		range
-	alice		73275		219M		2003-11 ~ 2004-04
-	mermaid		112087		2.3G		2003-09 ~ 2004-05
-	doll		135910		4.2G		2003-04 ~ 2004-05
-	anderson	252917		9.7G		2003-03 ~ 2004-05
+	realm		users		actsize		range				months	parts	gen
+	alice		73275		219M		2003-11 ~ 2004-04	6		3		18 * 4
+	mermaid		112087		2.3G		2003-09 ~ 2004-05	8		3 (+1)	24 * 4
+	doll		135910		4.2G		2003-04 ~ 2004-05	14		5		70 * 4
+	anderson	252917		9.7G		2003-03 ~ 2004-05	15		9		135 * 4
 	# baal
-	wolf		189885		4.9G		2003-03 ~ 2004-05
-	red			167876		5.3G		2003-03 ~ 2004-05
-	green		211757		9.1G		2003-03 ~ 2004-05
+	wolf		189885		4.9G		2003-03 ~ 2004-05	12		7		90 * 4
+	red			167876		5.3G		2003-03 ~ 2004-05	15		6		105
+	green		211757		9.1G		2003-03 ~ 2004-05	-		-
 
 data:
 	content in pickle: 

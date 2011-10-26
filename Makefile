@@ -26,7 +26,8 @@ USER_COLLECTION_DIR = ${DATA_DIR}/user_collections
 FEATURE_DIR = ${DATA_DIR}/features
 FEATURE_PART_DIR = ${FEATURE_DIR}/parts
 # settings
-REALMS = alice mermaid anderson doll green red wolf
+#REALMS = alice mermaid anderson doll green red wolf
+REALMS = alice
 CHANNELS = tell say party family 
 
 clear:

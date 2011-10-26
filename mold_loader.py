@@ -42,23 +42,23 @@ def main(argv):
 		with open(outfile, 'w') as F:
 			# writing header
 			predict_part	= "sub_len"
-			id_part			= paste(csv_sep, "cid", "account", "gender", "race", "level")
-			owl_part		= paste(csv_sep, "t_stream", "s_stream", "p_stream", "f_stream", "all_stream")
-			tLValue_part	= paste(csv_sep, "tLSum", "tLMean", "tLMin", "tLMix")
-			tNValue_part	= paste(csv_sep, "tNSum", "tNMean", "tNMin", "tNMix")
-			tValue_part		= paste(csv_sep, tLValue_part, tNValue_part)
-			sLValue_part	= paste(csv_sep, "sLSum", "sLMean", "sLMin", "sLMix")
-			sNValue_part	= paste(csv_sep, "sNSum", "sNMean", "sNMin", "sNMix")
-			sValue_part		= paste(csv_sep, sLValue_part, sNValue_part)
-			pLValue_part	= paste(csv_sep, "pLSum", "pLMean", "pLMin", "pLMix")
-			pNValue_part	= paste(csv_sep, "pNSum", "pNMean", "pNMin", "pNMix")
-			pValue_part		= paste(csv_sep, pLValue_part, pNValue_part)
-			fLValue_part	= paste(csv_sep, "fLSum", "fLMean", "fLMin", "fLMix")
-			fNValue_part	= paste(csv_sep, "fNSum", "fNMean", "fNMin", "fNMix")
-			fValue_part		= paste(csv_sep, fLValue_part, fNValue_part)
-			attr_part		= paste(csv_sep, "dDay", "rDay", tValue_part, sValue_part, pValue_part, fValue_part)
+			id_part			= paste(csv_sep, "ddate", "edate", "cid", "account", "gender", "race", "level")
+			owl_part		= paste(csv_sep, "t_stream", "s_stream", "p_stream", "f_stream")
+#			tLValue_part	= paste(csv_sep, "tLSum", "tLMean", "tLMin", "tLMix")
+#			tNValue_part	= paste(csv_sep, "tNSum", "tNMean", "tNMin", "tNMix")
+#			tValue_part		= paste(csv_sep, tLValue_part, tNValue_part)
+#			sLValue_part	= paste(csv_sep, "sLSum", "sLMean", "sLMin", "sLMix")
+#			sNValue_part	= paste(csv_sep, "sNSum", "sNMean", "sNMin", "sNMix")
+#			sValue_part		= paste(csv_sep, sLValue_part, sNValue_part)
+#			pLValue_part	= paste(csv_sep, "pLSum", "pLMean", "pLMin", "pLMix")
+#			pNValue_part	= paste(csv_sep, "pNSum", "pNMean", "pNMin", "pNMix")
+#			pValue_part		= paste(csv_sep, pLValue_part, pNValue_part)
+#			fLValue_part	= paste(csv_sep, "fLSum", "fLMean", "fLMin", "fLMix")
+#			fNValue_part	= paste(csv_sep, "fNSum", "fNMean", "fNMin", "fNMix")
+#			fValue_part		= paste(csv_sep, fLValue_part, fNValue_part)
+#			attr_part		= paste(csv_sep, "dDay", "rDay", tValue_part, sValue_part, pValue_part, fValue_part)
 			event_part		= paste(csv_sep, "familyRank", "familyNum", "friendNum")
-			outheader		= paste(csv_sep, predict_part, id_part, owl_part, attr_part, event_part)
+			outheader		= paste(csv_sep, predict_part, id_part, owl_part, event_part)
 			F.write("%s\n" % outheader)
 
 			# writing data
@@ -86,9 +86,9 @@ def main(argv):
 					# activities in revealed period
 					s_int			= min(data.get_subscription())
 					r_int			= max(data.get_subscription())
-					values			= data.get_event_summary(s_int, r_int, 'tellspeaks', 'sayspeaks', 'partyspeaks', 'familyspeaks')
-					all_values		= reduce(add, map(lambda x: x[1], values))
-					all_activities	= csv_sep.join(str(x) for x in all_values)
+#					values			= data.get_event_summary(s_int, r_int, 'tellspeaks', 'sayspeaks', 'partyspeaks', 'familyspeaks')
+#					all_values		= reduce(add, map(lambda x: x[1], values))
+#					all_activities	= csv_sep.join(str(x) for x in all_values)
 					# events
 					familyRank		= len(filter(lambda x: x != 0, data.rank.values()))
 					familyNum		= len(data.familyhistory)
@@ -97,7 +97,7 @@ def main(argv):
 				else:
 					continue
 
-				outline = paste(csv_sep, str(des_len), cid, all_attributes, streams, all_activities, all_events)
+				outline = paste(csv_sep, str(des_len), s_int, r_int, cid, all_attributes, streams, all_events)
 				F.write("%s\n" % outline)
 
 	for opt, arg in opts:

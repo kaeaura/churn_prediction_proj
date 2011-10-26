@@ -1,323 +1,166 @@
 # Jing-Kai Lou (kaeaura@gamil.com)
 # Wed Sep 28 15:50:40 CST 2011
-# This script analyze the attributes in gender
+
+# contents =============================================================================
+# script for analyzing and plotting figures
+#
+# associated files
+# plot_eve.R:
+# |	-- library
+# |	-- read input
+# |	-- plot par. settings
+# |
+# |	(section 1) terms: population, gender, race, level, family, observation_lenght
+# |- plot_eve_population.R : population
+# |- plot_eve_gender.R : gender
+# |- plot_eve_race.R : race
+# |- plot_eve_gender-in-race: gender + race
+# |- plot_eve_level.R : level
+# |- plot_eve_level-in-gender: level + gender
+# |- plot_eve_level-in-race: level + race
+# |- ... (to be extanded)
+# |
+# |	(section 2) owl, addiction (test if mean significatn differencet)
+# |- plot_eve_owls : gender + owl
+# |- plot_eve_gender-in-owls : gender + owl
+# |- plot_eve_gender-in-owls : gender + owl
+# |- ... (to be extanded)
+#
+# contents
+# - library
+# - functions
+# - pre parameter settings
+# - argv for input files
+# - post parameter settings
+# ==========================================================================================
+
+# library settings =============================================================================
+cat('--loading-library\n')
 require('ggplot2')
+require('reshape')
 source('my.fig.R')
 source('included.R')
 
-# testing argv: ../exp/alice_activity.csv
-# example: Rscript --vanilla plot_eve.R alice_activity.csv
-
-argv = commandArgs(TRUE)
-argc = length(argv)
-
-fig_dir = '../fig'
-
-if ('-t' %in% argv) {
-	enable_gg = T
-	argv = setdiff(argv, '-t')
-} else {
-	enable_gg = F
+# functions =============================================================================
+cat('load-funcs\n')
+# get owl-coefficient
+get_owl_coef <- function(x, sep = ':') {
+	night_period = c(1:5, 23:24)
+	sapply	(
+				strsplit(x, sep), 
+				function(x) {
+					nx = as.integer(x)
+					if (length(nx) >= 24) {
+						return(ifelse(sum(nx), sum(nx[night_period]) / sum(nx), 0))
+					}
+				}
+	)
 }
 
+# pre-parameter settings =============================================================================
+cat('pre-par\n')
+fig_dir = '../fig'
+if (!file.exists(fig_dir)) dir.create(fig_dir)
+enable_post_process = F
+default_infile = '../exp/temp.txt'
+
+options(digits = 4)
+
+max_df = 60 - 1
+fig_num = 1
+
 gender_labels = c('Male', 'Female')
-gender_colors = c('blue', 'red')
+gender_colors = c('royalblue', 'lightpink')
+gender_lty = c(2, 1)
 gender_pch = c(18, 4)
 
 race_labels = c('Human', 'Elf', 'Dwarf')
-race_colors = c('blue', 'green', 'gold')
+race_colors = c('royalblue', 'lightgreen', 'darkgoldenrod1')
+race_lty = c(1, 2, 4)
 race_pch = c(18, 4, 2)
 
-for (arg in argv) {
-	if (file.exists(arg) && find_extension(arg) == 'csv') {
-		cat(sprintf('reading file: %s', arg))
-		df = read.csv(arg, header = T, as.is = T, encoding = 'iso-8859-1')
-		cat(sprintf('\tdone\n'))
+# argv for input files =============================================================================
+# testing argv: ../exp/alice_activity.csv
+# Usage: Rscript --vanilla plot_eve.R alice_activity.csv
+cat('--parsing-argv\n')
+argv = commandArgs(TRUE)
+argc = length(argv)
 
-		# in gender
-		if ('gender' %in% names(df)) {
-			# race in gender ==============================================================
-			fig_name = replace_extention(basename(arg), '')
-			fig_name = file.path(fig_dir, paste('race_in_gender', fig_name, sep = '_'))
-			cat(sprintf('plotting figure: %s', fig_name))
+if (argc) {
+	infiles = argv[file.exists(argv)]
+	infiles = infiles[order(file.info(infiles)$size)]
+} else if (!argc && file.exists(default_infile)) {
+	infiles = default_infile
+} else {
+	cat('no proper input')
+	exist()
+}
 
-			if (enable_gg) {
-				g = ggplot(df, aes(x = factor(race), fill = factor(gender))) + geom_bar(binwidth = 1, position = 'dodge')
-				ggsave(g, file = sprintf('%s.pdf', fig_name))
-			} else {
-				my.fig(fig_name, 1, 1)
-				race_in_gender = by(df, df$gender, function(g.df) { g.df$race })
-				race.gender.mtx = sapply(race_in_gender, function(x) table(x))
+data.df = data.frame()
+labels = NULL
 
-				barplot(race.gender.mtx, 
-						beside = T,
-						names.arg = gender_labels,
-						legend.text = race_labels,
-						main = sprintf('Race in Gender (data: %s)', basename(arg)),
-						angle = c(45, -45, 45),
-						col = race_colors
-				)
-				my.fig.off()
-			}
+for (infile_index in 1:length(infiles)) {
+	infile = infiles[infile_index]
+	read.df = read.csv(infile, header = T, encoding = 'iso-8859-1')
 
-			cat('\tdone\n')
-
-			# level in gender ==============================================================
-			fig_name = replace_extention(basename(arg), '')
-			fig_name = file.path(fig_dir, paste('level_in_gender', fig_name, sep = '_'))
-			cat(sprintf('plotting figure: %s', fig_name))
-
-			if (enable_gg) {
-				g = ggplot(df, aes(x = level, fill = factor(gender))) + geom_bar(breaks = seq(0, 80, 2))
-				ggsave(g, file = sprintf('%s.pdf', fig_name))
-			} else {
-				my.fig(fig_name, 1, 1)
-
-				level_in_gender = by(df, df$gender, function(g.df) { g.df$level })
-				level.gender.list = sapply(level_in_gender, function(x) table(x))
-				max_level = max(as.integer(unlist(sapply(level.gender.list, names))))
-				max_ratio = max(unlist(level.gender.list))
-
-				plot(	0, 
-						type = 'n', 
-						xlab = 'achevied level',
-						ylab = 'character ratio',
-						xlim = range(0, max_level, 100), 
-						ylim = range(0, max_ratio), 
-						main = sprintf('Level in Gender (data: %s)', basename(arg))
-				)
-
-				for (lg_index in 1:length(level.gender.list)) {
-					lines(	level.gender.list[[lg_index]], 
-							type = 'p', 
-							col = gender_colors[lg_index],
-							pch = gender_pch[lg_index],
-							cex = 1.2
-					)
-				}
-
-				legend( x = max(max_level, 100), 
-						y = max_ratio, 
-						xjust = 1,
-						yjust = 1,
-						gender_labels, 
-						col = gender_colors, 
-						pch = gender_pch
-				)
-				my.fig.off()
-			}
-
-			cat('\tdone\n')
-
-			# ploting subscription length ==============================================================
-			# 	figure name
-			fig_name = replace_extention(basename(arg), '')
-			fig_name = file.path(fig_dir, paste('subscription_in_gender', fig_name, sep = '_'))
-			cat(sprintf('plotting figure: %s', fig_name))
-
-			# 	plotting
-			if (enable_gg) {
-				g = ggplot(df, aes(x = sub_len, fill = factor(gender))) + geom_bar(binwidth = 10) + scale_y_log10()
-				ggsave(g, file = sprintf('%s.pdf', fig_name))
-			} else {
-				my.fig(fig_name, 1, 1)
-				sl_in_gender = by(df, df$gender, function(g.df) { ceiling(g.df$sub_len) })
-				sl.gender = sapply(sl_in_gender, function(x) table(x) )
-				if (class(sl.gender) == 'list') {
-					max_sl = max(as.integer(unlist(sapply(sl.gender, names))), na.rm = T)
-					max_ratio = max(unlist(sl.gender))
-				} else if (class(sl.gender) == 'matrix') {
-					max_sl = max(as.integer(row.names(sl.gender)))
-					max_ratio = max(sl.gender)
-				}
-
-				plot(	1, 
-						type = 'n', 
-						xlab = 'subscription length (day)',
-						ylab = 'character number',
-						xlim = range(1, max_sl), 
-						ylim = range(1, max_ratio), 
-						main = sprintf('Subscription in Gender (data: %s)', basename(arg)),
-						log = 'xy'
-				)
-
-				#	lines
-				if (class(sl.gender) == 'list') {
-					for (sl_index in 1:length(sl.gender)) {
-						lines(	sl.gender[[sl_index]],
-								type = 'p',
-								col = gender_colors[sl_index],
-								pch = gender_pch[sl_index],
-								cex = 1.2
-						)
-					}
-				} else {
-					for (sl_index in 1:ncol(sl.gender)) {
-						lines(	sl.gender[,sl_index],
-								type = 'p',
-								col = gender_colors[sl_index],
-								pch = gender_pch[sl_index],
-								cex = 1.2
-						)
-					}
-				}
-
-				#	legend
-				legend( x = max_sl, 
-						y = max_ratio, 
-						xjust = 1,
-						yjust = 1,
-						gender_labels, 
-						col = gender_colors, 
-						pch = gender_pch
-				)
-				my.fig.off()
-			}
-			cat('\tdone\n')
-
-			# guild joined ==============================================================
-			# world phase: population, observation  ==============================================================
-		}
-
-		if ('race' %in% names(df)) {
-			# level in race ==============================================================
-			#	figure name
-			fig_name = replace_extention(basename(arg), '')
-			fig_name = file.path(fig_dir, paste('level_in_race', fig_name, sep = '_'))
-			cat(sprintf('plotting figure: %s', fig_name))
-
-			#	plotting
-			if (enable_gg) {
-				g = ggplot(df, aes(x = level, fill = factor(race))) + geom_bar(breaks = seq(0, 80, 2))
-				ggsave(g, file = sprintf('%s.pdf', fig_name))
-			} else {
-				my.fig(fig_name, 1, 1)
-				level_in_race = by(df, df$race, function(g.df) { g.df$level })
-				level.race.list = sapply(level_in_race, function(x) table(x))
-				max_level = max(as.integer(unlist(sapply(level.race.list, names))))
-				max_ratio = max(unlist(level.race.list))
-				plot(	0, 
-						type = 'n', 
-						xlab = 'achevied level',
-						ylab = 'character ratio',
-						xlim = range(0, max_level, 100), 
-						ylim = range(0, max_ratio), 
-						main = sprintf('Level in Gender (data: %s)', basename(arg)),
-				)
-
-				#	lines
-				for (lr_index in 1:length(level.race.list)){
-					lines(	level.race.list[[lr_index]], 
-							type = 'p',
-							col = race_colors[lr_index],
-							pch = race_pch[lr_index],
-							cex = 1.2
-					)
-				}
-
-				#	legend
-				legend( x = max(max_level, 100), 
-						y = max_ratio, 
-						xjust = 1,
-						yjust = 1,
-						race_labels, 
-						col = race_colors, 
-						pch = race_pch
-				)
-				my.fig.off()
-			}
-			cat('\tdone\n')
-
-			# subscription in race ==============================================================
-			# 	figure name
-			fig_name = replace_extention(basename(arg), '')
-			fig_name = file.path(fig_dir, paste('subscription_in_race', fig_name, sep = '_'))
-			cat(sprintf('plotting figure: %s', fig_name))
-
-			# 	plotting
-			if (enable_gg) {
-				g = ggplot(df, aes(x = sub_len, fill = factor(race))) + geom_bar(binwidth = 10) + scale_y_log10()
-				ggsave(g, file = sprintf('%s.pdf', fig_name))
-			} else {
-				my.fig(fig_name, 1, 1)
-
-				sl_in_race = by(df, df$race, function(g.df) { ceiling(g.df$sub_len) })
-				sl.race = sapply(sl_in_race, function(x) table(x) )
-				if (class(sl.race) == 'list') {
-					max_sl = max(as.integer(unlist(sapply(sl.race, names))), na.rm = T)
-					max_ratio = max(unlist(sl.race))
-				} else if (class(sl.race) == 'matrix') {
-					max_sl = max(as.integer(row.names(sl.race)))
-					max_ratio = max(sl.race)
-				}
-
-				plot(	1, 
-						type = 'n', 
-						xlab = 'subscription length (day)',
-						ylab = 'character number',
-						xlim = range(1, max_sl), 
-						ylim = range(1, max_ratio), 
-						main = sprintf('Subscription in Race (data: %s)', basename(arg)),
-						log = 'xy'
-				)
-
-				#	lines
-				if (class(sl.race) == 'list') {
-					for (sl_index in 1:length(sl.race)) {
-						lines(	sl.race[[sl_index]],
-								type = 'p',
-								col = race_colors[sl_index],
-								pch = race_pch[sl_index],
-								cex = 1.2
-						)
-					}
-				} else {
-					for (sl_index in 1:ncol(sl.race)) {
-						lines(	sl.race[,sl_index],
-								type = 'p',
-								col = race_colors[sl_index],
-								pch = race_pch[sl_index],
-								cex = 1.2
-						)
-					}
-				}
-
-				#	legend
-				legend( x = max_sl, 
-						y = max_ratio, 
-						xjust = 1,
-						yjust = 1,
-						race_labels, 
-						col = race_colors, 
-						pch = race_pch
-				)
-				my.fig.off()
-			}
-			cat('\tdone\n')
-
-		}
-
-		if ('level' %in% names(df)) {
-			# subscription in level ==============================================================
-			# 	figure name
-			fig_name = replace_extention(basename(arg), '')
-			fig_name = file.path(fig_dir, paste('subscription_in_level', fig_name, sep = '_'))
-			cat(sprintf('plotting figure: %s', fig_name))
-
-			if (enable_gg) {
-				lgp = findInterval(df$level, seq(0, 80, 20))
-				df$lgp = lgp
-				#g = ggplot(df, aes(x = sub_len, fill = factor(level))) + geom_bar(binwidth = 10) + scale_y_log10() 
-				#g = ggplot(df, aes(x = sub_len, fill = factor(findInterval(level, seq(0, 80, 20))))) + geom_bar(binwidth = 10, position = 'dodge') + scale_y_log10()
-				g = ggplot(df, aes(x = sub_len)) + geom_bar(binwidth = 10) + facet_wrap(~lgp + race, ncol=3) + scale_y_log10()
-				#g = ggplot(df, aes(x = sub_len)) + geom_density() + facet_wrap(~lgp + race, ncol=3) + scale_y_log10()
-				#g = ggplot(df, aes(x = sub_len, fill = factor(lgp))) + geom_bar(binwidth = 10) + facet_wrap(~gender + race)
-				ggsave(g, file = sprintf('%s.pdf', fig_name))
-			}
-
-		}
-
+	if ('label' %in% names(read.df)) {
+		label = unique(as.character(read.df$label))
 	} else {
-		cat(sprintf("file: %s does not exist\n", arg))
+		label = toupper(substring(basename(infile), 1, 3))
+		read.df$label = label
+	}
+
+	labels = c(labels, label)
+
+	if ( infile_index == 1 ) {
+		data.df = read.df
+	} else {
+		data.df = rbind(data.df, read.df)
 	}
 }
+
+# NOTE: only the subscription length greater than 10 days
+data.df = subset(data.df, sub_len > 10)
+
+# post-process
+if (enable_post_process) {
+	print ('post-processing')
+	data.df <- within(
+			data.df, {
+				gender = factor(data.df$gender, labels = c('Male', 'Female'))
+				race = factor(data.df$race, labels = c('Human', 'Elf', 'Dwarf'))
+				label = as.factor(data.df$label)
+				ocoef = apply	(
+									subset(data.df, select=c(t_stream, s_stream, p_stream, f_stream)), 
+									1, 
+									function(x) {
+										sum(sapply(x, get_owl_coef)) / 4
+									}
+								)
+				dmonth = substr(data.df$ddate, 1, 6)
+				emonth = substr(data.df$edate, 1, 6)
+				rm(cid, ddate, edate, t_stream, s_stream, p_stream, f_stream)
+			}
+		)
+	print ('done')
+	write.csv(data.df, file = '../exp/temp.txt', row.names = F, quote = F)
+}
+
+# post-parameter settings =============================================================================
+cat('--post-par\n')
+labels = unique(as.character(data.df$label))
+labels_color = rainbow(length(labels))
+labels_pch = 1:length(labels)
+
+labels_len = by	(
+					data.df, 
+					data.df$label, 
+					function(x) {
+						uniq_months = unique(union(x$dmonth, x$emonth))
+						return(length(uniq_months))
+					}
+				)
+
+#global_months = sort(unique(substr(c(data.df$ddate, data.df$edate), 1, 6)))
+global_months = sort(unique(c(data.df$dmonth, data.df$emonth)))
+
