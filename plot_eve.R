@@ -133,19 +133,20 @@ if (enable_post_process) {
 				race = factor(data.df$race, labels = c('Human', 'Elf', 'Dwarf'))
 				label = as.factor(data.df$label)
 				ocoef = apply	(
-									subset(data.df, select=c(t_stream, s_stream, p_stream, f_stream)), 
+									subset(data.df, select=c(ts_stream, tl_stream, s_stream, p_stream, f_stream)), 
 									1, 
 									function(x) {
 										sum(sapply(x, get_owl_coef)) / 4
 									}
 								)
-				tv = stream_to_value(data.df$t_stream)
-				sv = stream_to_value(data.df$s_stream)
-				pv = stream_to_value(data.df$p_stream)
-				fv = stream_to_value(data.df$f_stream)
+				t_sum = stream_to_value(data.df$ts_stream)
+				l_sum = stream_to_value(data.df$tl_stream)
+				s_sum = stream_to_value(data.df$s_stream)
+				p_sum = stream_to_value(data.df$p_stream)
+				f_sum = stream_to_value(data.df$f_stream)
 				dmonth = substr(data.df$ddate, 1, 6)
 				emonth = substr(data.df$edate, 1, 6)
-				rm(ddate, edate, t_stream, s_stream, p_stream, f_stream)
+				rm(ddate, edate, ts_stream, tl_stream, s_stream, p_stream, f_stream)
 			}
 		)
 	print ('done')

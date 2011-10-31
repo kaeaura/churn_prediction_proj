@@ -9,7 +9,15 @@ Meetings:
 		- gender with time effect *
 		- realm size normalization (with observation period lenght) *
 		- Chi-Square test *
-
+	- 2011/10/26
+		- table auto-matically generated
+		- level-up rate: max-achieved lv / subscription length
+		- part 1: gender issue
+			- 不同性別角色／玩家之間的互動關係／強度也值得分析，例如說女生角色會不會找 男生角色比較多，是誰主動？
+			- 同一個帳號若有多重角色性別的話，這種玩家會不會跟別人有不同？
+			- 同一個帳號若有多重角色性別的話，他／她的男／女角色會跟什麼性別的角色互 動？是主動或被動？
+		- part 2: realm issue: realm的特質是否影響玩家的行為?
+			- factors: realm period, realm size, realm freshness
 Goal
 
 	- In-game features
