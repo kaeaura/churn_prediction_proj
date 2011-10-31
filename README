@@ -21,16 +21,44 @@ Goal
 			- In-Game Observation: 兩兩相互比較
 				- Avatar characteristic
 					- population
-						- population growth or decay over time?
+						- growth trend
+							- first 4 months can achieve average 60% total population
+							- but decays fast, visit population often drops 3 months later since launched
+						- growth trend in char. population vs account population 
+							- similar, accounts seems to be more smooth
+						- growth rate rank:
+							- ALI > MER > RED > AND > DOL > WOL
+						- growht rate rank factors may related to?
+							- population size?
+							- many guilds?
+							- more female? (or more male?)
 					- gender 
 						- gender ratio balance? (chisq.test)
 							- imbalance, # male char. > # female char.
+						- gender consistancy in accounts
+							- very consistancy
+							- three clusters: all-female (1), half-male (2), all-male (3)
+								- realm: alice
+								- members: 434, 387, 556
+								- mean tv (trim 0.1): 540.2, 436.3, 484.1
+								- mean fv (trim 0.1): 305.4, 255.2, 282.0 - mean level (trim 0.1): 27.6, 26.0, 28.6
+								- mean sub_len (trim 0.1): 62.9, 58.65, 58,84
+								- mean ocoef (trim 0.1): 0.244, 0.215, 0.218
+								- mean friend num (trim 0.1): 15.97, 14.98, 14.41
+								- mean guild num (trim 0.1): 1.19, 0.99, 1.09
+								- mean guild rank (trim 0.1): 0.89, 0.77, 0.83
 						- ratio in each realm equal? (prop.test)
 							- barely eqaul
 						- gender ratio changes significatntly over time? 
-							- female char. increases but not significantly
+							- female char. increases, but not significantly
+						- whats the main difference of players favors in different character gender?
+							- level
+							- subscription length
+							- owl-coefficient
 					- race
 						- race ratio balance? (chisq.test)
+						- race consistancy in accounts
+							- not consistancy
 						- ratio in each realm equal? (prop.test)
 						- gender ratio changes significatntly over time?
 					- level

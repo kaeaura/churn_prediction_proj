@@ -23,7 +23,6 @@
 # |	(section 2) owl, addiction (test if mean significatn differencet)
 # |- plot_eve_owls : gender + owl
 # |- plot_eve_gender-in-owls : gender + owl
-# |- plot_eve_gender-in-owls : gender + owl
 # |- ... (to be extanded)
 #
 # contents
@@ -101,7 +100,7 @@ labels = NULL
 
 for (infile_index in 1:length(infiles)) {
 	infile = infiles[infile_index]
-	read.df = read.csv(infile, header = T, encoding = 'iso-8859-1')
+	read.df = read.csv(infile, header = T, as.is = T, encoding = 'iso-8859-1')
 
 	if ('label' %in% names(read.df)) {
 		label = unique(as.character(read.df$label))
@@ -125,6 +124,9 @@ data.df = subset(data.df, sub_len > 10)
 # post-process
 if (enable_post_process) {
 	print ('post-processing')
+	stream_to_value <- function(s) {
+		sapply(strsplit(s, ':'), function(x) sum(as.integer(x)))
+	}
 	data.df <- within(
 			data.df, {
 				gender = factor(data.df$gender, labels = c('Male', 'Female'))
@@ -137,9 +139,13 @@ if (enable_post_process) {
 										sum(sapply(x, get_owl_coef)) / 4
 									}
 								)
+				tv = stream_to_value(data.df$t_stream)
+				sv = stream_to_value(data.df$s_stream)
+				pv = stream_to_value(data.df$p_stream)
+				fv = stream_to_value(data.df$f_stream)
 				dmonth = substr(data.df$ddate, 1, 6)
 				emonth = substr(data.df$edate, 1, 6)
-				rm(cid, ddate, edate, t_stream, s_stream, p_stream, f_stream)
+				rm(ddate, edate, t_stream, s_stream, p_stream, f_stream)
 			}
 		)
 	print ('done')

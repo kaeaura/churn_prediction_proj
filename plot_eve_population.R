@@ -13,121 +13,174 @@ cat(sprintf('fig: plotting figure about population\n'))
 
 
 # population over time
-p.list = list()
-v.list = list()
+p.list = list(); pa.list = list()
+v.list = list(); va.list = list()
 for (g_month in global_months) {
 	list_name = as.character(g_month)
-	sub.df = subset(data.df, dmonth <= g_month, select = c('label', 'sub_len'))
-	vsub.df = subset(data.df, dmonth <= g_month & emonth >= g_month, select = c('label', 'sub_len'))
+	sub.df = subset(data.df, dmonth <= g_month, select = c('label', 'account'))
+	vsub.df = subset(data.df, dmonth <= g_month & emonth >= g_month, select = c('label', 'account'))
 	if (nrow(sub.df)) {
-		p.mdf = melt(sub.df, id = "label", measure.var = "sub_len")
-		p.list[[list_name]] = cast(p.mdf, label ~ variable, length)
+		p.mdf = melt(sub.df, id = "label", measure.var = "account")
+		p.list[[list_name]] = cast(p.mdf, label ~ variable, length)								#character count
+		pa.list[[list_name]] = cast(p.mdf, label ~ variable, function(x) length(unique(x)))		#account count
 		rm(sub.df, p.mdf)
 	}
 	if (nrow(vsub.df)) {
-		v.mdf = melt(vsub.df, id = "label", measure.var = "sub_len")
+		v.mdf = melt(vsub.df, id = "label", measure.var = "account")
 		v.list[[list_name]] = cast(v.mdf, label ~ variable, length)
+		va.list[[list_name]] = cast(v.mdf, label ~ variable, function(x) length(unique(x)))
 		rm(vsub.df, v.mdf)
 	} 
 	rm(list_name)
 }
 
 # population over time for each realm
-realm.list = lapply	(
-						labels, 
-						function(l) {
-							sapply(p.list, function(d)  ifelse(length(grep(l, d$label)), d$sub_len[grep(l, d$label)], NA))
-						}
-					)
-names(realm.list) = labels
-
-# visit pop. for each realm
-visit.list = lapply (
-						labels, 
-						function(l) {
-							sapply(v.list, function(d)  ifelse(length(grep(l, d$label)), d$sub_len[grep(l, d$label)], NA))
-						}
-					)
-names(visit.list) = labels
+cum_char.df = ldply(p.list, data.frame)
+cum_acct.df = ldply(pa.list, data.frame)
+vis_char.df = ldply(v.list, data.frame)
+vis_acct.df = ldply(va.list, data.frame)
 
 #plot figure
 fig_name = sprintf('%s/fig%d_population', fig_dir, fig_num)
 fig_num = fig_num + 1
 
-my.fig(fig_name, 2, 1)
+my.fig(fig_name, 1, 2)
 # visit plot
-xrange = range(1, length(v.list))
-yrange = range(visit.list, na.rm = T)
+xaxt = union(cum_char.df$.id, vis_char.df$.id)
+xaxt = xaxt[order(as.integer(xaxt))]
+xrange = range(1:length(xaxt))
+yrange = range(vis_char.df$account, vis_acct.df$account, na.rm = T)
 plot	(
 			0,
-			log = 'y',
-			xaxt = 'n',
 			type = 'n',
+			xaxt = 'n',
 			xlab = 'time',
 			ylab = 'population',
 			main = 'Monthly Visit Population',
 			xlim = xrange,
 			ylim = yrange
 		)
-axis(1, 1:length(v.list), names(v.list))
-for (v.index in 1:length(visit.list)) {
-	label = names(visit.list)[v.index]
-	lines	(
-				x = 1:length(visit.list[[v.index]]),
-				y = visit.list[[v.index]],
-				col = labels_color[which(labels == label)],
-				lty = 2,
-				lwd = 2
-			)
-}
+axis(1, at = 1:length(xaxt), label = xaxt)
+
+by	(
+		vis_char.df,
+		vis_char.df$label,
+		function(sdf) {
+			lines(
+					match(sdf$.id, xaxt), 
+					sdf$account,
+					col = labels_color[which(labels == unique(sdf$label))],
+					lty = 1,
+					lwd = 2
+				)
+		}
+	)
+
+by	(
+		vis_acct.df,
+		vis_acct.df$label,
+		function(sdf) {
+			lines(
+					match(sdf$.id, xaxt), 
+					sdf$account,
+					col = labels_color[which(labels == unique(sdf$label))],
+					lty = 3,
+					lwd = 2
+				)
+		}
+	)
+
 legend	(
-			x = min(xrange),
-			y = min(yrange),
+			x = max(xrange),
+			y = max(yrange),
 			ncol = 2,
-			xjust = 0,
-			yjust = 0,
+			xjust = 1,
+			yjust = 1,
 			paste(labels, as.character(labels_len), sep = ':'),
 			col = labels_color,
 			lty = 2,
 			lwd = 3,
 			cex = 0.6
 		)
-# population plot
-xrange = range(1, length(p.list))
-yrange = range(realm.list, na.rm = T)
-plot	(
-			0,
-			log = 'y',
-			xaxt = 'n',
-			type = 'n',
-			xlab = 'time',
-			ylab = 'population',
-			main = 'Cumulative Population',
-			xlim = xrange,
-			ylim = yrange
-		)
-axis(1, 1:length(p.list), names(p.list))
-for (r.index in 1:length(realm.list)) {
-	label = names(realm.list)[r.index]
-	lines	(
-				x = 1:length(realm.list[[r.index]]),
-				y = realm.list[[r.index]],
-				col = labels_color[which(labels == label)],
-				pch = 19,
-				lwd = 2,
-			)
-}
 legend	(
 			x = min(xrange),
 			y = min(yrange),
 			ncol = 2,
 			xjust = 0,
 			yjust = 0,
+			c('character', 'account'),
+			lwd = 2,
+			lty = c(1, 3),
+			cex = 0.6
+		)
+
+# population plot
+xaxt = union(cum_char.df$.id, cum_char.df$.id)
+xaxt = xaxt[order(as.integer(xaxt))]
+xrange = range(1:length(xaxt))
+yrange = range(cum_char.df$account, cum_acct.df$account, na.rm = T)
+plot	(
+			0,
+			type = 'n',
+			xaxt = 'n',
+			xlab = 'time',
+			ylab = 'population',
+			main = 'Cumulative Population',
+			xlim = xrange,
+			ylim = yrange
+		)
+axis(1, at = 1:length(xaxt), label = xaxt)
+
+by	(
+		cum_char.df,
+		cum_char.df$label,
+		function(sdf) {
+			lines(
+					match(sdf$.id, xaxt), 
+					sdf$account,
+					col = labels_color[which(labels == unique(sdf$label))],
+					lty = 1,
+					lwd = 2
+				)
+		}
+	)
+
+by	(
+		cum_acct.df,
+		cum_acct.df$label,
+		function(sdf) {
+			lines(
+					match(sdf$.id, xaxt), 
+					sdf$account,
+					col = labels_color[which(labels == unique(sdf$label))],
+					lty = 3,
+					lwd = 2
+				)
+		}
+	)
+
+legend	(
+			x = min(xrange),
+			y = max(yrange),
+			ncol = 2,
+			xjust = 0,
+			yjust = 1,
 			paste(labels, as.character(labels_len), sep = ':'),
 			col = labels_color,
+			lty = 2,
 			lwd = 3,
-			pch = 19,
-			cex = .6
+			cex = 0.6
+		)
+legend	(
+			x = min(xrange),
+			y = min(yrange),
+			ncol = 2,
+			xjust = 0,
+			yjust = 0,
+			c('character', 'account'),
+			lwd = 2,
+			lty = c(1, 3),
+			cex = 0.6
 		)
 my.fig.off()
 

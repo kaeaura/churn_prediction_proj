@@ -43,7 +43,7 @@ def main(argv):
 			# writing header
 			predict_part	= "sub_len"
 			id_part			= paste(csv_sep, "ddate", "edate", "cid", "account", "gender", "race", "level")
-			owl_part		= paste(csv_sep, "t_stream", "s_stream", "p_stream", "f_stream")
+			owl_part		= paste(csv_sep, "t_stream", "s_stream", "p_stream", "f_stream", "o_stream", "i_stream")
 #			tLValue_part	= paste(csv_sep, "tLSum", "tLMean", "tLMin", "tLMix")
 #			tNValue_part	= paste(csv_sep, "tNSum", "tNMean", "tNMin", "tNMix")
 #			tValue_part		= paste(csv_sep, tLValue_part, tNValue_part)
@@ -82,7 +82,9 @@ def main(argv):
 					s_stream		= get_stream(data, 'sayspeaks')
 					p_stream		= get_stream(data, 'partyspeaks')
 					f_stream		= get_stream(data, 'familyspeaks')
-					streams			= paste(csv_sep, t_stream, s_stream, p_stream, f_stream)
+					o_stream		= get_stream(data, 'talkto')
+					i_stream		= get_stream(data, 'listento')
+					streams			= paste(csv_sep, t_stream, s_stream, p_stream, f_stream, o_stream, i_stream)
 					# activities in revealed period
 					s_int			= min(data.get_subscription())
 					r_int			= max(data.get_subscription())
