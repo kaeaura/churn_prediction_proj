@@ -29,6 +29,10 @@ FEATURE_PART_DIR = ${FEATURE_DIR}/parts
 REALMS = alice mermaid anderson doll green red wolf
 CHANNELS = tell say party family 
 
+
+sweave: dataset_summary.Rnw
+	R CMD Sweave dataset_summary.Rnw && pdflatex dataset_summary.tex; pdflatex dataset_summary.tex
+
 clear:
 	rm -f *.pyc
 
@@ -176,6 +180,21 @@ table: mold_loader.py
 		done ; \
 		echo "python mold_loader.py $${OPTS} -w ../exp/$${REALM}_activity.csv" ; \
 		python mold_loader.py $${OPTS} -w ../exp/$${REALM}_activity.csv ; \
+	done
+
+# interaction
+interaction: mold_loader.py
+	for REALM in ${REALMS} ; do \
+		OPTS="";\
+		for CHANNEL in ${CHANNELS} ; do \
+			MPATH=${FEATURE_PART_DIR}/$${CHANNEL} ; \
+			MFILES=`ls $${MPATH}/$${REALM}_*` ; \
+			for MFILE in $${MFILES} ; do \
+				test -e $${MFILE} && OPTS="$${OPTS} -m $${MFILE}" || echo "$${MFILE} doesnt exist"; \
+			done ; \
+		done ; \
+		echo "python mold_loader.py $${OPTS} -I ../exp/$${REALM}_interaction.csv" ; \
+		python mold_loader.py $${OPTS} -I ../exp/$${REALM}_interaction.csv ; \
 	done
 
 # time slice (suspend)

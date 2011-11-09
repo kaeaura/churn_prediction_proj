@@ -14,7 +14,7 @@ __author__ = "Jing-Kai Lou (kaeaura@gmail.com)"
 
 def main(argv):
 	try:
-		opts, args = getopt.getopt(argv, "hi:m:tw:", ["help"])
+		opts, args = getopt.getopt(argv, "hi:m:tw:I:", ["help"])
 	except getopt.GetoptError:
 		print ("The given arguments incorrect")
 
@@ -22,13 +22,15 @@ def main(argv):
 	mergingfiles = list()
 	enable_test = False
 	enable_write = False
+	enable_write_interaction = False
 
 	def usage():
 		print ("-h : print the usage")
 		print ("-i ...: the loadfile")
 		print ("-t: show testing page")
 		print ("-m ...: merged file")
-		print ("-w ...: write table to file")
+		print ("-w ...: write activity table to file")
+		print ("-I ...: write interaction table to file")
 
 	def add(x, y):
 		return(x + y)
@@ -37,6 +39,21 @@ def main(argv):
 		args = map(lambda  x: str(x), args)
 		return(seperator.join(args))
 
+	def write_interaction(outfile, user_dict, csv_sep = ","):
+		def extend(x, y): return(list(x) + list(y))
+		with open(outfile, 'w') as F:
+			# writing header
+			outheader = paste(csv_sep, "sender", "receiver", "interactions")
+			F.write("%s\n" % outheader)
+			for cid, data in user_dict.items():
+				if len(data.talkto.values()) == 0:
+					continue
+				else:
+					all_rids_pool = reduce(extend, data.talkto.values())
+					all_rids = list(set(all_rids_pool))
+					for rid in all_rids:
+						F.write("%s\n" % paste(csv_sep, cid, rid, len(filter(lambda x: x == rid, all_rids_pool))))
+
 	def write_table(outfile, user_dict, csv_sep = ","):
 		secs_in_day = 86400
 		with open(outfile, 'w') as F:
@@ -44,19 +61,6 @@ def main(argv):
 			predict_part	= "sub_len"
 			id_part			= paste(csv_sep, "ddate", "edate", "cid", "account", "gender", "race", "level")
 			owl_part		= paste(csv_sep, "ts_stream", "tl_stream", "s_stream", "p_stream", "f_stream")
-#			tLValue_part	= paste(csv_sep, "tLSum", "tLMean", "tLMin", "tLMix")
-#			tNValue_part	= paste(csv_sep, "tNSum", "tNMean", "tNMin", "tNMix")
-#			tValue_part		= paste(csv_sep, tLValue_part, tNValue_part)
-#			sLValue_part	= paste(csv_sep, "sLSum", "sLMean", "sLMin", "sLMix")
-#			sNValue_part	= paste(csv_sep, "sNSum", "sNMean", "sNMin", "sNMix")
-#			sValue_part		= paste(csv_sep, sLValue_part, sNValue_part)
-#			pLValue_part	= paste(csv_sep, "pLSum", "pLMean", "pLMin", "pLMix")
-#			pNValue_part	= paste(csv_sep, "pNSum", "pNMean", "pNMin", "pNMix")
-#			pValue_part		= paste(csv_sep, pLValue_part, pNValue_part)
-#			fLValue_part	= paste(csv_sep, "fLSum", "fLMean", "fLMin", "fLMix")
-#			fNValue_part	= paste(csv_sep, "fNSum", "fNMean", "fNMin", "fNMix")
-#			fValue_part		= paste(csv_sep, fLValue_part, fNValue_part)
-#			attr_part		= paste(csv_sep, "dDay", "rDay", tValue_part, sValue_part, pValue_part, fValue_part)
 			event_part		= paste(csv_sep, "familyRank", "familyNum", "friendNum")
 			outheader		= paste(csv_sep, predict_part, id_part, owl_part, event_part)
 			F.write("%s\n" % outheader)
@@ -87,9 +91,6 @@ def main(argv):
 					# activities in revealed period
 					s_int			= min(data.get_subscription())
 					r_int			= max(data.get_subscription())
-#					values			= data.get_event_summary(s_int, r_int, 'tellspeaks', 'sayspeaks', 'partyspeaks', 'familyspeaks')
-#					all_values		= reduce(add, map(lambda x: x[1], values))
-#					all_activities	= csv_sep.join(str(x) for x in all_values)
 					# events
 					familyRank		= len(filter(lambda x: x != 0, data.rank.values()))
 					familyNum		= len(data.familyhistory)
@@ -117,6 +118,9 @@ def main(argv):
 			mergingfiles.append(arg)
 		elif opt in ("-w"):
 			enable_write = True
+			outfile = arg
+		elif opt in ("-I"):
+			enable_write_interaction = True
 			outfile = arg
 
 	if loadfile is not None and os.path.exists(loadfile):
@@ -150,10 +154,16 @@ def main(argv):
 		else:
 			print ("file : %s does not exist! so skipped." % mfile)
 
-	# write tblae
+	# write table
 	if enable_write and len(user_dict):
 		print ("Writing file: %s" % outfile)
 		write_table(outfile = outfile, user_dict = user_dict)
+		print ("done")
+
+	# write interaction table
+	if enable_write_interaction and len(user_dict):
+		print ("Writing interaction table: %s" % outfile)
+		write_interaction(outfile = outfile, user_dict = user_dict)
 		print ("done")
 
 	# test print

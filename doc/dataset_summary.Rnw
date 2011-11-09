@@ -1,0 +1,381 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amscd}
+\usepackage{longtable}
+\usepackage[tableposition=top]{caption}
+\usepackage{ifthen}
+\usepackage[utf8]{inputenc}
+
+\setlength{\topmargin}{0in}
+\setlength{\headheight}{0in}
+\setlength{\headsep}{0in}
+\setlength{\textheight}{8in}
+\setlength{\textwidth}{6.5in}
+\setlength{\oddsidemargin}{0in}
+\setlength{\evensidemargin}{0in}
+\setlength{\parindent}{0.25in}
+\setlength{\parskip}{0.25in}
+
+\begin{document}
+
+\title{Fairyland Online: Dataset Summary}
+\author{Jing-Kai Lou}
+\maketitle
+
+<<label=load_dataset, echo=FALSE, results=hide>>=
+doc_wd = getwd()
+setwd('../src')
+source('plot_eve.R')	# gain the data.df
+setwd(doc_wd)
+require('reporttools')
+tab_dir = '../tab'
+
+data.df = ddply	(
+			data.df, 
+			.(account), 
+			function(z)	{
+				if(all(z$gender == z$p_gender)) {	#h(o)mo
+					transform(z, p_type = 'homo')
+				}else if (all(z$gender != z$p_gender)) {
+					transform(z, p_type = 'heter')		#h(e)te
+				}else{
+					transform(z, p_type = 'hybrid')		#h(y)brid
+				}
+			}
+		)
+data.df$p_type = factor(data.df$p_type)
+sdf = subset(data.df, label %in% labels[1:4])
+@
+
+\section{Population Summary}
+Table~\ref{tab_summary} shows the avatar population in gender and monthly population during our observation period. 
+Due to the space, we randomly choose four realms to show below. The p-value that used in the table is a testing of gender balance with $\chi^2$ test.
+
+<<label=tab1, echo=FALSE, results=tex>>=
+tableNominal	(
+					vars = subset(sdf, select = c(gender, p_gender, p_type, dmonth)),
+					group = sdf$label,
+					print.pval = 'chi2',
+					cap = 'Players: nominal variable',
+					lab = 'tab_summary',
+					cumsum = F,
+					longtable = F
+				)
+@
+
+\subsection{Behaviors in Gender}
+\begin{description}
+\item[Question] The avatars behave differently in gender?
+\item[Variabes of Interest]
+	\begin{description}
+		\item[sub\_len] the subscription length
+		\item[level] the max-achieved level 
+		\item[level\_speed] the leveling speed ($level\_speed = \frac{level}{sub\_len}$)
+		\item[family\_num] the number of joined families 
+		\item[friend\_num] the number of avatar name in friend list
+		\item[t\_sum] the number of send messages in tell-channel
+		\item[l\_sum] the number of received messages in tell-channel
+		\item[recip] the reciprocity $(recip = \frac{l\_sum}{t\_sum + l\_sum})$
+		\item[ocoef] the activity ratio since 11:00pm to 5:00am in a day 
+	\end{description}
+\item[Test] Anova Test
+\item[Short Conclusion] Except making officially friends, the avatars behave differently. 
+\end{description}
+
+<<label=tab2, echo=FALSE, results=tex>>=
+ob_vars = subset(data.df, select = c(sub_len, level, level_speed, family_num, friend_num, t_sum, l_sum, recip, ocoef))
+
+tableContinuous	(
+					vars = ob_vars,
+					group = data.df$gender,
+					print.pval = 'anova',
+					cap = 'Avatar: continous variable in avatar gender',
+					lab = 'tab_cts_by_g',
+					longtable = F
+				)
+
+tableContinuous	(
+					vars = subset(data.df, select = c(sub_len, level, level_speed, family_num, friend_num, t_sum, l_sum, recip, ocoef)),
+					group = data.df$p_gender,
+					print.pval = 'anova',
+					cap = 'Avatar: continous variable in player gender',
+					lab = 'tab_cts_by_pg',
+					longtable = F
+				)
+tableContinuous	(
+					vars = subset(data.df, select = c(sub_len, level, level_speed, family_num, friend_num, t_sum, l_sum, recip, ocoef)),
+					group = data.df$p_type,
+					print.pval = 'anova',
+					cap = 'Avatar: continous variable in player type',
+					lab = 'tab_cts_by_pt',
+					longtable = F
+				)
+@
+
+\section{The Gender Factor over Realms}
+\subsection{Difference in Gender}
+
+\begin{description}
+\item[Question] How avatars performs in gender?
+\item[Variables] leveling speed, subscription length, owl coefficient, and reciprocity.
+\item[Test] Welcox test
+\item[Short Conclusion] performance in gender
+	\begin{description}
+	\item[leveling speed] male avaters gain level faster
+	\item[subscription length] female avatars usually have longer subscription length 
+	\item[owl coefficient] female avatars have higher probability to appear in owl period (11:00pm \-- 05:00am)
+	\item[reciprocity] female usually gain more feedback in tell channel
+	\end{description}
+\end{description}
+
+<<label=tab3, echo=FALSE, results=tex>>=
+g.wilcox.df = 
+				ddply(
+					sdf,
+					.(label),
+					function(x) {
+							fdf = subset(x, gender == 'Female')
+							mdf = subset(x, gender == 'Male') 
+							vars = c('level_speed', 'sub_len', 'ocoef', 'recip')
+							W = lapply(vars, function(a) wilcox.test(fdf[[a]], mdf[[a]], alternative = 'g'))
+							names(W) = vars
+							return(ldply(W, function(w) data.frame(alt = w$alternative, p.value = w$p.value)))
+					}
+				)
+
+l.wilcox.df = 
+				ddply(
+					sdf,
+					.(label),
+					function(x) {
+							fdf = subset(x, gender == 'Female')
+							mdf = subset(x, gender == 'Male') 
+							vars = c('level_speed', 'sub_len', 'ocoef', 'recip')
+							W = lapply(vars, function(a) wilcox.test(fdf[[a]], mdf[[a]], alternative = 'l'))
+							names(W) = vars
+							return(ldply(W, function(w) data.frame(alt = w$alternative, p.value = w$p.value)))
+					}
+				)
+
+wilcox.df = merge(g.wilcox.df, l.wilcox.df, by = c('label', '.id'), suffixe = c('g', 'l'))
+
+print	(
+			xtable(
+					wilcox.df,
+					digits = 4,
+					table.placement = 'tbp',
+					label = 'tab:gender-wilcox-test-greater',
+					caption = 'Female vs Male using Wilcox Test'
+			)
+		)
+
+@
+
+\section{Account Type}
+\begin{description}
+\item[Question] Any significant difference among accounts?
+\item[Classify] Clustering into three categories: Female, Male, and Hybrid based on the gender\_ratio
+\item[gender\_ratio] for an account, $gender\_ratio = \frac{\# \; male \; avatars}{\# \; all \; avatars}$
+\item[sample] accounts who own more than 1 avatar
+\item[result] Figure~\ref{fig1}
+\end{description}
+
+<<label=fig1plot, include=FALSE >>=
+adf = subset(data.df, acc_num > 1)
+#Jitter plot
+p = ggplot(adf, aes(x = gender_ratio, y = 0))
+pg = p + geom_point(alpha = 1/10, position = 'jitter') + facet_wrap( ~ label) + ylab('jitter') + xlab('gender ratio')
+
+#ECDF plot
+#gr_ecdf = ddply(adf, .(label), transform, ecdf = ecdf(gender_ratio)(gender_ratio))
+#p = ggplot(gr_ecdf, aes(gender_ratio, ecdf, colour = label))
+#pg = p + geom_step(subset = .(gender_ratio > 0)) + xlab('Gender Ratio') + ylab('Emprical CDF') 
+print(pg)
+@
+
+\begin{figure}
+\begin{center}
+<<label=fig1, fig=TRUE, echo=FALSE>>=
+<<fig1plot>>
+@
+\caption{Gender Ratio over Realms}
+\end{center}
+\end{figure}
+
+We cluster the accounts with similar gender into 2 categories: {\it H(o)mogenous}, and {\it H(e)terogenous}
+\begin{description}
+\item [Homogenous] An avatar have same gender respect to its player
+\item [Heterogenous] An avatar have different gender respect to its player
+\end{description}
+Then table~\ref{tab:account-type-continous} shows a summary of the vars in different type.
+
+<<label=avatar-gender_player-gender, results=tex>>=
+m = melt(sdf, id = c('p_gender', 'gender'), measure.var = c('sub_len', 'ocoef', 'level_speed', 'friend_num', 'family_num', 't_sum', 'l_sum', 'recip'))
+l = cast(m, p_gender + gender ~ variable, subset=variable=='sub_len', length)
+print 	(
+			xtable	(
+						l, 
+						caption = 'Mean Table', 
+						label = 'tab:pgender-agender-count', 
+						table.placement = 'tbp', 
+						digits = 2
+					)
+		)
+d = cast(m, p_gender + gender ~ variable, mean, na.rm = T)
+print 	(
+			xtable	(
+						d, 
+						caption = 'Mean Table', 
+						label = 'tab:pgender-agender-mean', 
+						table.placement = 'tbp', 
+						digits = 2
+					)
+		)
+@
+
+<<label=tab4, echo=FALSE, results=tex>>=
+sdf = subset(data.df, data.df$acc_num > 1)
+tableContinuous	(
+					vars = subset(sdf, select = c(level_speed, ocoef, recip, sub_len)),
+					group = paste(sdf$atype, sdf$gender, sep = '::'),
+					print.pval = 'anova',
+					#disp.cols = c("n", "min", "median", "max", "iqr", "s", "na"),
+					cap = 'Avatar characterisitcs: continous variable in account-type (anova)',
+					lab = 'tab:account-type-continous',
+					longtable = F
+				)
+@
+
+To obtain the difference among difference account type and avatar gender, we show the behavior (in subscription length, owl coefficient, leveling speed, tell speaking, tell listening, and reciprocity) in Table~\ref{tab:account-type-mean}.
+
+<<label=tab5, echo=FALSE, results=tex>>=
+m = melt(sdf, id = c('gender', 'atype'), measure.var = c('sub_len', 'ocoef', 'level_speed', 't_sum', 'l_sum', 'recip'))
+d = cast(m, atype + gender ~ variable, mean, trim = .1, na.rm = T)
+print 	(
+			xtable	(
+						d, 
+						caption = 'Mean Table (trim = .1)', 
+						label = 'tab:account-type-mean1', 
+						table.placement = 'tbp', 
+						digits = 2
+					)
+		)
+@
+
+\clearpage
+\subsection{Test on Account Type}
+This following tables show the test on account type and avatar gender.
+\begin{itemize}
+\item What is the difference between Hybird players and other players?
+	\begin{itemize}
+	\item H:Female vs F:Female
+	\item H:Male vs M:Male
+	\end{itemize}
+\end{itemize}
+
+<<label=tab6, echo=FALSE, results=tex>>=
+#g.wilcox.df = 
+#				ddply(
+#					sdf,
+#					.(label),
+#					function(x) {
+#							fdf = subset(x, atype == 'H' & gender == 'Female') 
+#							mdf = subset(x, atype == 'F' & gender == 'Female')
+#							vars = c('level_speed', 'sub_len', 'ocoef', 'recip')
+#							W = lapply(vars, function(a) wilcox.test(fdf[[a]], mdf[[a]], alternative = 'g'))
+#							names(W) = vars
+#							return(ldply(W, function(w) data.frame(alt = w$alternative, p.value = w$p.value)))
+#					}
+#				)
+
+fdf = subset(sdf, atype == 'H' & gender == 'Female') 
+mdf = subset(sdf, atype == 'F' & gender == 'Female')
+vars = c('level_speed', 'sub_len', 'ocoef', 'recip')
+W = lapply(vars, function(a) wilcox.test(fdf[[a]], mdf[[a]], alternative = 'g'))
+names(W) = vars
+g.wilcox.df = ldply(W, function(w) data.frame(alt = w$alternative, p.value = w$p.value))
+
+print	(
+			xtable(
+					g.wilcox.df,
+					digits = 4,
+					table.placement = 'tbp',
+					label = 'tab:type-wilcox-test-greater1',
+					caption = 'Hybrid vs Female using Wilcox Test'
+			)
+		)
+
+<<label=tab7, echo=FALSE, results=tex>>=
+
+fdf = subset(sdf, atype == 'H' & gender == 'Male') 
+mdf = subset(sdf, atype == 'M' & gender == 'Male')
+vars = c('level_speed', 'sub_len', 'ocoef', 'recip')
+W = lapply(vars, function(a) wilcox.test(fdf[[a]], mdf[[a]], alternative = 'g'))
+names(W) = vars
+g.wilcox.df = ldply(W, function(w) data.frame(alt = w$alternative, p.value = w$p.value))
+
+print	(
+			xtable(
+					g.wilcox.df,
+					digits = 4,
+					table.placement = 'tbp',
+					label = 'tab:type-wilcox-test-greater2',
+					caption = 'Hybrid vs Male using Wilcox Test'
+			)
+		)
+@
+
+\section{Interactions in Gender}
+Interactions: the number of converseion sessions (1 day) between two avatars.
+
+<<label=tab8, echo=FALSE, results=tex>>=
+idf = read.csv('../exp/doll_inter.csv', header = T, as.is = T)
+idf = transform	(
+					idf, 
+					g.pair = paste(gender.s, gender.r, sep=':'), 
+					a.pair = paste(atype.s, atype.r, sep = ':'), 
+					ag.pair = paste(atype.s, gender.s, atype.r, gender.r, sep=':')
+				)
+
+m = melt(idf, id = c('gender.s', 'atype.s', 'gender.r', 'atype.r'), measure.vars = 'interactions')
+
+print	(
+			xtable	(
+						cast(m, gender.s ~ gender.r + result_variable, function(x) c(count = length(x), mean = mean(x, na.rm = T))),
+						caption = 'Interaction Table (gender vs gender)', 
+						label = 'tab:interaction-gi-count', 
+						table.placement = 'tbp', 
+					)
+		)
+
+print	(
+			xtable	(
+						cast(m, atype.s ~ gender.r + result_variable, function(x) c(count = length(x), mean = mean(x, na.rm = T))),
+						caption = 'Interaction Table (type vs gender)', 
+						label = 'tab:interaction-gi-mean', 
+						table.placement = 'tbp', 
+					)
+		)
+
+print	(
+			xtable	(
+						cast(m, atype.s ~ atype.r + result_variable, function(x) c(count = length(x), mean = mean(x, na.rm = T))),
+						caption = 'Interaction Table (type vs type)', 
+						label = 'tab:interaction-ai-count', 
+						table.placement = 'tbp', 
+					)
+		)
+
+print	(
+			xtable	(
+						cast(m, atype.s + gender.s ~ atype.r + result_variable, function(x) c(count = length(x), mean = mean(x, na.rm = T))),
+						caption = 'Interaction Mean Table (type + gender vs type)', 
+						label = 'tab:interaction-ai-mean', 
+						table.placement = 'tbp', 
+					)
+		)
+
+@
+
+
+\end{document}

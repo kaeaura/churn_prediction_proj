@@ -2,28 +2,13 @@
 # Wed Sep 28 15:50:40 CST 2011
 
 # contents =============================================================================
-# script for analyzing and plotting figures
+# script for generation the table describing the fairyland dataset 
 #
 # associated files
 # plot_eve.R:
 # |	-- library
 # |	-- read input
 # |	-- plot par. settings
-# |
-# |	(section 1) terms: population, gender, race, level, family, observation_lenght
-# |- plot_eve_population.R : population
-# |- plot_eve_gender.R : gender
-# |- plot_eve_race.R : race
-# |- plot_eve_gender-in-race: gender + race
-# |- plot_eve_level.R : level
-# |- plot_eve_level-in-gender: level + gender
-# |- plot_eve_level-in-race: level + race
-# |- ... (to be extanded)
-# |
-# |	(section 2) owl, addiction (test if mean significatn differencet)
-# |- plot_eve_owls : gender + owl
-# |- plot_eve_gender-in-owls : gender + owl
-# |- ... (to be extanded)
 #
 # contents
 # - library
@@ -62,6 +47,7 @@ fig_dir = '../fig'
 if (!file.exists(fig_dir)) dir.create(fig_dir)
 enable_post_process = F
 default_infile = '../exp/temp.txt'
+member_infile = '../exp/member.csv'
 
 options(digits = 4)
 
@@ -92,7 +78,7 @@ if (argc) {
 	infiles = default_infile
 } else {
 	cat('no proper input')
-	exist()
+	exit()
 }
 
 data.df = data.frame()
@@ -111,15 +97,12 @@ for (infile_index in 1:length(infiles)) {
 
 	labels = c(labels, label)
 
-	if ( infile_index == 1 ) {
+	if (infile_index == 1) {
 		data.df = read.df
 	} else {
 		data.df = rbind(data.df, read.df)
 	}
 }
-
-# NOTE: only the subscription length greater than 10 days
-data.df = subset(data.df, sub_len > 10)
 
 # post-process
 if (enable_post_process) {
@@ -127,6 +110,15 @@ if (enable_post_process) {
 	stream_to_value <- function(s) {
 		sapply(strsplit(s, ':'), function(x) sum(as.integer(x)))
 	}
+
+	if (file.exists(member_infile)) {
+		member.df = read.csv(member_infile)
+		pg = as.character(member.df$p_gender)
+		member.df$p_gender = factor(pg, level = c('男', '女'), labels = c('Male', 'Female'))
+	} else {
+		cat(sprintf('file: %s does not exist!\n', member_infilea))
+	}
+
 	data.df <- within(
 			data.df, {
 				gender = factor(data.df$gender, labels = c('Male', 'Female'))
@@ -149,9 +141,40 @@ if (enable_post_process) {
 				rm(ddate, edate, ts_stream, tl_stream, s_stream, p_stream, f_stream)
 			}
 		)
+
+	data.df = rename(data.df, c(friendNum = "friend_num", familyRank = "family_pos", familyNum = "family_num"))
+
+	# noise filter
+	data.df = subset(data.df, sub_len > 3 & t_sum + l_sum + s_sum + p_sum + f_sum > 10)
+
+	# merge the member data.frame
+	data.df = merge(data.df, member.df, by = 'account')
+
+	# newly add features
+	data.df = transform	(
+							data.df, 
+							all_sum = t_sum + l_sum + s_sum + p_sum + f_sum, 
+							level_speed = level / sub_len, 
+							recip = l_sum / (t_sum + l_sum)
+						)
+	data.df = ddply	(
+						data.df,
+						.(account),
+						transform,
+						gender_ratio = sum(gender == 'Male') / length(gender)
+					)
+
+	k = kmeans(data.df$gender_ratio, 3)
+	data.df$atype = factor(k$cluster, level = order(k$center), label = c('F', 'H', 'M'))
+	data.df = ddply(data.df, .(account), transform, acc_num = length(account))
+
 	print ('done')
 	write.csv(data.df, file = '../exp/temp.txt', row.names = F, quote = F)
 }
+
+if (any(names(data.df) == 'gender') && !is.factor(data.df$gender)) data.df$gender = as.factor(data.df$gender)
+if (any(names(data.df) == 'race') && !is.factor(data.df$race)) data.df$race = as.factor(data.df$race)
+if (any(names(data.df) == 'family_pos') && !is.factor(data.df$family_pos)) data.df$family_pos = as.factor(data.df$family_pos)
 
 # post-parameter settings =============================================================================
 cat('--post-par\n')
@@ -168,6 +191,5 @@ labels_len = by	(
 					}
 				)
 
-#global_months = sort(unique(substr(c(data.df$ddate, data.df$edate), 1, 6)))
 global_months = sort(unique(c(data.df$dmonth, data.df$emonth)))
 
