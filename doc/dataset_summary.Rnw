@@ -22,175 +22,86 @@
 \author{Jing-Kai Lou}
 \maketitle
 
-<<label=load_dataset, echo=FALSE, results=hide>>=
+\section{Members, Accounts, and Characters}
+
+<<label=load_dataset, echo=FALSE, results=tex>>=	
+# get data
 doc_wd = getwd()
-setwd('../src')
-source('plot_eve.R')	# gain the data.df
-setwd(doc_wd)
+setwd('~/projects/churn_prediction/src')
+source('plot_eve.R')
 require('reporttools')
-tab_dir = '../tab'
+setwd(doc_wd)
 
-data.df = ddply	(
-			data.df, 
-			.(account), 
-			function(z)	{
-				if(all(z$gender == z$p_gender)) {	#h(o)mo
-					transform(z, p_type = 'homo')
-				}else if (all(z$gender != z$p_gender)) {
-					transform(z, p_type = 'heter')		#h(e)te
-				}else{
-					transform(z, p_type = 'hybrid')		#h(y)brid
-				}
-			}
-		)
-data.df$p_type = factor(data.df$p_type)
-sdf = subset(data.df, label %in% labels[1:4])
+# reshape
+tt <- function(x) strptime(x, format = '%Y%m%d%H')
+data.df = ddply(data.df, .(label), transform, realm_len = as.numeric(difftime(tt(max(edate)),  tt(min(ddate)))))	#realm length
+data.df$sub_ratio = data.df$sub_len / data.df$realm_len	#subscription ratio
+data.df = ddply(data.df, .(label), transform, realm_c_size = length(c_id), realm_m_size = length(unique(m_id)), realm_a_size = length(unique(account)))
+
+# newly added column:
+# realm period length, m size, a size, c size
+# avatar subscription ratio
 @
 
-\section{Population Summary}
-Table~\ref{tab_summary} shows the avatar population in gender and monthly population during our observation period. 
-Due to the space, we randomly choose four realms to show below. The p-value that used in the table is a testing of gender balance with $\chi^2$ test.
-
-<<label=tab1, echo=FALSE, results=tex>>=
-tableNominal	(
-					vars = subset(sdf, select = c(gender, p_gender, p_type, dmonth)),
-					group = sdf$label,
-					print.pval = 'chi2',
-					cap = 'Players: nominal variable',
-					lab = 'tab_summary',
-					cumsum = F,
-					longtable = F
-				)
-@
-
-\subsection{Behaviors in Gender}
-\begin{description}
-\item[Question] The avatars behave differently in gender?
-\item[Variabes of Interest]
-	\begin{description}
-		\item[sub\_len] the subscription length
-		\item[level] the max-achieved level 
-		\item[level\_speed] the leveling speed ($level\_speed = \frac{level}{sub\_len}$)
-		\item[family\_num] the number of joined families 
-		\item[friend\_num] the number of avatar name in friend list
-		\item[t\_sum] the number of send messages in tell-channel
-		\item[l\_sum] the number of received messages in tell-channel
-		\item[recip] the reciprocity $(recip = \frac{l\_sum}{t\_sum + l\_sum})$
-		\item[ocoef] the activity ratio since 11:00pm to 5:00am in a day 
-	\end{description}
-\item[Test] Anova Test
-\item[Short Conclusion] Except making officially friends, the avatars behave differently. 
-\end{description}
-
-<<label=tab2, echo=FALSE, results=tex>>=
-ob_vars = subset(data.df, select = c(sub_len, level, level_speed, family_num, friend_num, t_sum, l_sum, recip, ocoef))
-
-tableContinuous	(
-					vars = ob_vars,
-					group = data.df$gender,
-					print.pval = 'anova',
-					cap = 'Avatar: continous variable in avatar gender',
-					lab = 'tab_cts_by_g',
-					longtable = F
-				)
-
-tableContinuous	(
-					vars = subset(data.df, select = c(sub_len, level, level_speed, family_num, friend_num, t_sum, l_sum, recip, ocoef)),
-					group = data.df$p_gender,
-					print.pval = 'anova',
-					cap = 'Avatar: continous variable in player gender',
-					lab = 'tab_cts_by_pg',
-					longtable = F
-				)
-tableContinuous	(
-					vars = subset(data.df, select = c(sub_len, level, level_speed, family_num, friend_num, t_sum, l_sum, recip, ocoef)),
-					group = data.df$p_type,
-					print.pval = 'anova',
-					cap = 'Avatar: continous variable in player type',
-					lab = 'tab_cts_by_pt',
-					longtable = F
-				)
-@
-
-\section{The Gender Factor over Realms}
-\subsection{Difference in Gender}
-
-\begin{description}
-\item[Question] How avatars performs in gender?
-\item[Variables] leveling speed, subscription length, owl coefficient, and reciprocity.
-\item[Test] Welcox test
-\item[Short Conclusion] performance in gender
-	\begin{description}
-	\item[leveling speed] male avaters gain level faster
-	\item[subscription length] female avatars usually have longer subscription length 
-	\item[owl coefficient] female avatars have higher probability to appear in owl period (11:00pm \-- 05:00am)
-	\item[reciprocity] female usually gain more feedback in tell channel
-	\end{description}
-\end{description}
-
-<<label=tab3, echo=FALSE, results=tex>>=
-g.wilcox.df = 
-				ddply(
-					sdf,
-					.(label),
-					function(x) {
-							fdf = subset(x, gender == 'Female')
-							mdf = subset(x, gender == 'Male') 
-							vars = c('level_speed', 'sub_len', 'ocoef', 'recip')
-							W = lapply(vars, function(a) wilcox.test(fdf[[a]], mdf[[a]], alternative = 'g'))
-							names(W) = vars
-							return(ldply(W, function(w) data.frame(alt = w$alternative, p.value = w$p.value)))
-					}
-				)
-
-l.wilcox.df = 
-				ddply(
-					sdf,
-					.(label),
-					function(x) {
-							fdf = subset(x, gender == 'Female')
-							mdf = subset(x, gender == 'Male') 
-							vars = c('level_speed', 'sub_len', 'ocoef', 'recip')
-							W = lapply(vars, function(a) wilcox.test(fdf[[a]], mdf[[a]], alternative = 'l'))
-							names(W) = vars
-							return(ldply(W, function(w) data.frame(alt = w$alternative, p.value = w$p.value)))
-					}
-				)
-
-wilcox.df = merge(g.wilcox.df, l.wilcox.df, by = c('label', '.id'), suffixe = c('g', 'l'))
-
-print	(
-			xtable(
-					wilcox.df,
-					digits = 4,
-					table.placement = 'tbp',
-					label = 'tab:gender-wilcox-test-greater',
-					caption = 'Female vs Male using Wilcox Test'
-			)
-		)
-
-@
-
-\section{Account Type}
-\begin{description}
-\item[Question] Any significant difference among accounts?
-\item[Classify] Clustering into three categories: Female, Male, and Hybrid based on the gender\_ratio
-\item[gender\_ratio] for an account, $gender\_ratio = \frac{\# \; male \; avatars}{\# \; all \; avatars}$
-\item[sample] accounts who own more than 1 avatar
-\item[result] Figure~\ref{fig1}
-\end{description}
-
-<<label=fig1plot, include=FALSE >>=
-adf = subset(data.df, acc_num > 1)
-#Jitter plot
-p = ggplot(adf, aes(x = gender_ratio, y = 0))
-pg = p + geom_point(alpha = 1/10, position = 'jitter') + facet_wrap( ~ label) + ylab('jitter') + xlab('gender ratio')
-
-#ECDF plot
-#gr_ecdf = ddply(adf, .(label), transform, ecdf = ecdf(gender_ratio)(gender_ratio))
-#p = ggplot(gr_ecdf, aes(gender_ratio, ecdf, colour = label))
-#pg = p + geom_step(subset = .(gender_ratio > 0)) + xlab('Gender Ratio') + ylab('Emprical CDF') 
+<<label=fig0plot, include=FALSE>>=	
+g = ggplot(data.df, aes(x = realm_m_size, y = realm_a_size))
+pg = g + geom_point(aes(size = realm_c_size)) + stat_smooth(method = 'lm', se = T)
 print(pg)
+rm(g, pg)
+@
+
+\begin{figure}
+\begin{center}
+<<label=fig0, fig=TRUE, echo=FALSE>>=
+<<fig0plot>>
+@
+\caption{memebr number and account number in different realms}
+\end{center}
+\end{figure}
+
+<<label=summary, echo=FALSE, results=tex>>=	
+# how many players, accounts, and avatars?
+xtable	(
+			as.matrix(t(apply(subset(data.df, select = c(m_id, account, c_id)), 2, function(x) length(unique(x))))),
+			label = 'tab_summary',
+			caption = 'Number of members, accofunts, and avatars'
+		)
+
+# for each player, how many accounts and avatars does he/she have in average?
+m.df = ddply	(
+					subset(data.df, select = c(m_id, account, c_id)), 
+					.(m_id), 
+					function(x) c(accounts = length(unique(x$account)), c_ids = length(unique(x$c_id)))
+				)
+
+xtable	(
+			as.matrix(t(apply(subset(m.df, select = c(accounts, c_ids)), 2, summary))),
+			label = 'tab_mid_summary',
+			caption = 'Accounts and avatars in members'
+		)
+
+@
+
+<<label=fig1plot, include=FALSE>>=
+im = ddply(data.df, .(m_id), transform, acc = length(unique(account)), ava = length(unique(c_id)))
+im = subset(im, select = c(acc, ava, p_gender))
+
+imm = ddply(im, .(paste(acc, ava, sep = ':')), transform, size = length(acc))
+rm(im)
+imm = ddply(imm, .(p_gender), transform, ava.ecdf = ecdf(ava)(ava))
+imm = ddply(imm, .(p_gender), transform, acc.ecdf = ecdf(acc)(acc))
+
+g = ggplot(imm, aes(ava, acc))
+pg = g + geom_point(aes(size = size)) + scale_area() + facet_wrap(~ p_gender, ncol = 2) + coord_trans(x = 'log10', y = 'log10')
+print(pg)
+rm(g, pg)
+@
+
+<<label=fig2plot, include=FALSE>>=
+g = ggplot(imm, aes(ava, ava.ecdf, col = p_gender))
+pg = g + geom_step(subset = .(ava > 0)) + xlab('Number of Avatars') + ylab('Emprical CDF') 
+print(pg)
+rm(g, pg)
 @
 
 \begin{figure}
@@ -198,184 +109,582 @@ print(pg)
 <<label=fig1, fig=TRUE, echo=FALSE>>=
 <<fig1plot>>
 @
-\caption{Gender Ratio over Realms}
+\caption{distribution of account number and character number for each number}
 \end{center}
 \end{figure}
 
-We cluster the accounts with similar gender into 2 categories: {\it H(o)mogenous}, and {\it H(e)terogenous}
-\begin{description}
-\item [Homogenous] An avatar have same gender respect to its player
-\item [Heterogenous] An avatar have different gender respect to its player
-\end{description}
-Then table~\ref{tab:account-type-continous} shows a summary of the vars in different type.
-
-<<label=avatar-gender_player-gender, results=tex>>=
-m = melt(sdf, id = c('p_gender', 'gender'), measure.var = c('sub_len', 'ocoef', 'level_speed', 'friend_num', 'family_num', 't_sum', 'l_sum', 'recip'))
-l = cast(m, p_gender + gender ~ variable, subset=variable=='sub_len', length)
-print 	(
-			xtable	(
-						l, 
-						caption = 'Mean Table', 
-						label = 'tab:pgender-agender-count', 
-						table.placement = 'tbp', 
-						digits = 2
-					)
-		)
-d = cast(m, p_gender + gender ~ variable, mean, na.rm = T)
-print 	(
-			xtable	(
-						d, 
-						caption = 'Mean Table', 
-						label = 'tab:pgender-agender-mean', 
-						table.placement = 'tbp', 
-						digits = 2
-					)
-		)
+\begin{figure}
+\begin{center}
+<<label=fig2, fig=TRUE, width = 6, echo=FALSE>>=
+<<fig2plot>>
 @
+\caption{ECDF plot of avatar numbers}
+\end{center}
+\end{figure}
 
-<<label=tab4, echo=FALSE, results=tex>>=
-sdf = subset(data.df, data.df$acc_num > 1)
-tableContinuous	(
-					vars = subset(sdf, select = c(level_speed, ocoef, recip, sub_len)),
-					group = paste(sdf$atype, sdf$gender, sep = '::'),
-					print.pval = 'anova',
-					#disp.cols = c("n", "min", "median", "max", "iqr", "s", "na"),
-					cap = 'Avatar characterisitcs: continous variable in account-type (anova)',
-					lab = 'tab:account-type-continous',
+\section{Avatar Gender Selection}
+Table~\ref{tab_gender_distribution} shows the avatar population in avatar gender and player gender.
+How players choose the gender of their avatars?
+
+<<label=tab1, echo=FALSE, results=tex>>=
+tableNominal	(
+					vars = subset(data.df, select = gender),
+					group = data.df$p_gender,
+					print.pval = 'chi2',
+					lab = 'tab_gender_distribution',
+					cap = c('Row: avatar gender; Col: player gender'),
+					cumsum = F,
+					longtable = F
+				)
+
+tableNominal	(
+					vars = subset(data.df, select = p_gender),
+					group = data.df$gender,
+					print.pval = 'chi2',
+					lab = 'tab_gender_distribution',
+					cap = c('Row: player gender; Col: avatar gender'),
+					cumsum = F,
+					longtable = F
+				)
+
+tableNominal	(
+					vars = subset(data.df, select = realm_c_size),
+					group = data.df$gender,
+					print.pval = 'chi2',
+					lab = 'tab_gender_distribution',
+					cap = c('Row: player gender; Col: avatar gender'),
+					cumsum = F,
 					longtable = F
 				)
 @
 
-To obtain the difference among difference account type and avatar gender, we show the behavior (in subscription length, owl coefficient, leveling speed, tell speaking, tell listening, and reciprocity) in Table~\ref{tab:account-type-mean}.
+The small p-value of $\chi^2$ test tells that the male players and female players choose avatar gender significantly differently.
+According to the above table, most of players choose their avatar gender accordingly. There are $31.5\%$ female players choose male avatars while there are $24.2\%$ male players choose female avatars.
 
-<<label=tab5, echo=FALSE, results=tex>>=
-m = melt(sdf, id = c('gender', 'atype'), measure.var = c('sub_len', 'ocoef', 'level_speed', 't_sum', 'l_sum', 'recip'))
-d = cast(m, atype + gender ~ variable, mean, trim = .1, na.rm = T)
-print 	(
-			xtable	(
-						d, 
-						caption = 'Mean Table (trim = .1)', 
-						label = 'tab:account-type-mean1', 
-						table.placement = 'tbp', 
-						digits = 2
-					)
-		)
+
+\subsection{Gender Order}
+Foucs on the gender-consistency players whose avatars all share the same gender
+
+\begin{description}
+\item[Order] Male/Female avatars controlled by Male/Female players
+	\begin{itemize}
+		\item type 1 order: male avatars with male players
+		\item type 2 order: female avatars with female players
+	\end{itemize}
+\item[Disorder] Male/Female avatars controlled by Female/Male players
+	\begin{itemize}
+		\item type 1 disorder: male avatars with female players
+		\item type 2 disorder: female avatars with male players
+	\end{itemize}
+\end{description}
+
+{\it m\_type} means the gender identity of a member.
+The gender identity appears to be `order' for most of players. Specially for their first avatar in this game.
+Players tend to select an avatar with identical gender while they first play the game.
+
+<<label=tab2, echo=FALSE, results=tex>>=
+tableNominal	(
+					vars = subset(data.df, select = c(m_type)),
+					group = data.df$p_gender,
+					print.pval = 'chi2',
+					lab = 'tab_gender-order_distribution',
+					cap = c('Gender identity of avatars'),
+					cumsum = F,
+					longtable = F
+				)
+@
+
+For the first avatar in their accounts
+
+<<label=tab2.2, echo=TRUE, results=tex>>=
+s.df = subset(data.df, is_first_avatar == TRUE, select= c(m_id, gender, p_gender, m_type))
+sd.df = ddply	(	s.df, 
+					.(m_id), 
+					function(x) { 
+									if (all(x$gender == x$p_gender)) {
+										transform(x, mm_type = 'order')
+									} else if (all(x$gender != x$p_gender)) {
+										transform(x, mm_type = 'disorder')
+									} else {
+										transform(x, mm_type = 'hybrid')
+									}
+								}
+				)
+
+tableNominal	(
+					vars = subset(sd.df, select = c(mm_type)),
+					group = data.df$p_gender,
+					print.pval = 'chi2',
+					lab = 'tab_gender-order_distribution',
+					cap = c('Gender identity of avatars of the first account'),
+					cumsum = F,
+					longtable = F
+				)
+rm(s.df, sd.df)
+@
+
+For the first avatar in the first account, 
+
+<<label=tab2.3, echo=TRUE, results=tex>>=
+s.df = subset(data.df, is_first_avatar == TRUE & is_first.account, select= c(m_id, gender, p_gender, m_type))
+sd.df = ddply	(	s.df, 
+					.(m_id), 
+					function(x) { 
+									if (all(x$gender == x$p_gender)) {
+										transform(x, mm_type = 'order')
+									} else if (all(x$gender != x$p_gender)) {
+										transform(x, mm_type = 'disorder')
+									} else {
+										transform(x, mm_type = 'hybrid')
+									}
+								}
+				)
+
+tableNominal	(
+					vars = subset(sd.df, select = c(mm_type)),
+					group = data.df$p_gender,
+					print.pval = 'chi2',
+					lab = 'tab_gender-order_distribution',
+					cap = c('Gender identity of the first avatars of the first account'),
+					cumsum = F,
+					longtable = F
+				)
+rm(s.df, sd.df)
+@
+
+
+In different realm,
+<<label=tab2.4, echo=FALSE, results=tex>>=
+s1.df = subset(data.df, label %in% labels[1:3])
+s2.df = subset(data.df, label %in% labels[4:length(labels)])
+
+tableNominal	(
+					vars = subset(s1.df, select = c(gender, p_gender, m_type)),
+					group = s1.df$label,
+					print.pval = 'chi2',
+					lab = 'tab_gender-order_distribution',
+					cap = c('Gender identity in different realms'),
+					cumsum = F,
+					longtable = F
+				)
+
+tableNominal	(
+					vars = subset(s2.df, select = c(gender, p_gender, m_type)),
+					group = s2.df$label,
+					print.pval = 'chi2',
+					lab = 'tab_gender-order_distribution',
+					cap = c('Gender identity in different realms'),
+					cumsum = F,
+					longtable = F
+				)
+
+@
+
+<<label=fig3plot, include=FALSE>>=
+g = ggplot(data.df, aes(label, fill = m_type))
+pg = g + geom_bar(aes(fill = m_type), position = 'fill') + ylab('ratio') + xlab('realm')
+print(pg)
+rm(g, pg)
+@
+
+\begin{figure}
+\begin{center}
+<<label=fig3, fig=TRUE, echo=FALSE>>=
+<<fig3plot>>
+@
+\caption{Gender identity in realms}
+\end{center}
+\end{figure}
+
+\subsection{Avatar Behaviors in Gender}
+
+\begin{description}
+\item[Question] The avatars behave differently in gender?
+\item[Variabes of Interest] The variables we intersted
+	\begin{description}
+		\item[sub\_len] the subscription length
+		\item[sub\_ratio] the subscription length in realm ($sub\_ratio = \frac{sub\_len}{realm\_len}$
+		\item[level] the max-achieved level 
+		\item[level\_speed] the leveling speed ($level\_speed = \frac{level}{sub\_len}$)
+		\item[family\_num] the number of joined families 
+		\item[friend\_num] the number of avatar name in friend list
+		\item[act\_num] the total number of messages that sent and received in tell-channel
+		\item[recip] the reciprocity $(recip = \frac{l\_sum}{t\_sum + l\_sum})$
+		\item[ocoef] the activity ratio since 11:00pm to 5:00am in a day 
+	\end{description}
+\end{description}
+
+Table below shows the behavior acts in avatar gender and player gender. The values in table are the mean value with trim 0.1 (to remove some outliers). And, the columns stands for the player gender while the rows stands for avatar gender. We obtain some interesting pheonomenons. 
+
+<<label=tab3, echo=TRUE, results=tex>>=
+measure.variables = c('sub_len', 'sub_ratio', 'level', 'level_speed', 'family_num', 'friend_num', 'all_sum', 'recip', 'ocoef')
+
+# correlation among behaviors
+#xtable(cor(subset(data.df, select = measure.variables), method = 'spearman'))
+#xtable(cor(subset(data.df, m_type == 'order', select = measure.variables), method = 'spearman'))
+#xtable(cor(subset(data.df, m_type == 'disorder', select = measure.variables), method = 'spearman'))
+#xtable(cor(subset(data.df, m_type == 'hybrid', select = measure.variables), method = 'spearman'))
+
+m = melt(data.df, id = c('gender', 'p_gender'), measure.vars = measure.variables)
+mean.list.cast = cast(gender ~ p_gender | variable, data = m, mean, na.rm = T, trim = .1)
+xtable(ldply(mean.list.cast), table.placement = 'tbp', label = 'tab:gender_mean-vars', digit = 4, caption = 'Behaviors in Gender')
+@
+
+\begin{itemize}
+	\item Female players have longer subscription length than male players do in average
+	\item Male players gain higher achieved level than female players do in average
+	\item Male players level up more quickly than female players do in average
+	\item Not significantly differently in the vars: family\_num
+	\item Homogenous avatars claims more friends than Hetergenous avatars do
+	\item Homogenous avatars exchanges more messages in tell channel in average
+	\item Female players acts in mid-night more frequently in average. Also does the female avatars controlled by male players.
+\end{itemize}
+
+<<label=tab4, echo=TRUE, results=tex>>=
+
+#behaviors of avatars
+m = melt(subset(data.df, m_type %in% c('order', 'disorder')), id = c('gender', 'm_type'), measure.vars = measure.variables)
+mean.list.cast = cast(gender ~ m_type | variable, data = m, mean, na.rm = T, trim = 1)
+xtable(ldply(mean.list.cast), table.placement = 'tbp', label = 'tab:gender-type_mean-vars', digit = 4, caption = 'Player behaviors')
+rm(m, mean.list.cast)
+
+#behaviors of first avatars of first account
+s.df = subset(data.df, is_first_avatar == TRUE & is_first.account)
+sd.df = ddply	(	s.df, 
+					.(m_id), 
+					function(x) { 
+									if (all(x$gender == x$p_gender)) {
+										transform(x, mm_type = 'order')
+									} else if (all(x$gender != x$p_gender)) {
+										transform(x, mm_type = 'disorder')
+									} else {
+										transform(x, mm_type = 'hybrid')
+									}
+								}
+				)
+
+m = melt(subset(sd.df, mm_type %in% c('order', 'disorder')), id = c('gender', 'mm_type'), measure.vars = measure.variables)
+mean.list.cast = cast(gender ~ mm_type | variable, data = m, mean, na.rm = T, trim = 1)
+x = ldply(mean.list.cast)
+x = x[, c(1, 2, 4, 3)]
+xtable(x, table.placement = 'tbp', label = 'tab:gender-type_mean-vars', digit = 4, caption = 'Player behaviors')
+rm(s.df, sd.df, m, mean.list.cast)
 @
 
 \clearpage
-\subsection{Test on Account Type}
-This following tables show the test on account type and avatar gender.
+\subsection{Behavior in Player Gender and Avatar Gender}
+Focus on order players and disorder players
+Two way anova test to figure out which factors (player gender, or avatar gender) significantly effects the avatar behaviors.
+To pairwisely comparison, we use the Tukey Test below.
+
+<<label=tab5, echo=TRUE, results=tex>>=
+o.df = subset(data.df, m_type %in% c('order', 'disorder'))
+o.df$p_gender = as.factor(o.df$p_gender)
+nrow(o.df)
+
+h.df = subset(data.df, m_type == 'hybrid')
+h.df$p_gender = as.factor(h.df$p_gender)
+nrow(h.df)
+
+d.df = subset(data.df, m_type == 'disorder')
+d.df$p_gender = as.factor(d.df$p_gender)
+nrow(o.df)
+@
+\clearpage
+\subsubsection{subscription}
+consistency: $FF > MM > MF > FM$, where the first digit indicates the avatar gender and the second digit indicates the player gender
+
+<<label=tab5.1, echo=FALSE, results=tex>>=
+l = aov(sub_len ~ gender * p_gender, data = o.df)
+xtable(summary(l), cap = 'significants in subscription (order and disorder)', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing (order and disorder)', digit = 5)
+
+l = aov(sub_len ~ gender * p_gender, data = h.df)
+xtable(summary(l), cap = 'significants in subscription (hybrid)', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing (hybrid)', digit = 5)
+
+l = aov(sub_len ~ gender * p_gender, data = d.df)
+xtable(summary(l), cap = 'significants in subscription (hybrid)', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing (hybrid)', digit = 5)
+@
+
+\clearpage
+\subsubsection{level}
+max level achieved
 \begin{itemize}
-\item What is the difference between Hybird players and other players?
-	\begin{itemize}
-	\item H:Female vs F:Female
-	\item H:Male vs M:Male
-	\end{itemize}
+\item [order \& disorder] p-gender; $male > female$
+\item [hybrid] $MM > FF > FM > MF$
 \end{itemize}
 
-<<label=tab6, echo=FALSE, results=tex>>=
-#g.wilcox.df = 
-#				ddply(
-#					sdf,
-#					.(label),
-#					function(x) {
-#							fdf = subset(x, atype == 'H' & gender == 'Female') 
-#							mdf = subset(x, atype == 'F' & gender == 'Female')
-#							vars = c('level_speed', 'sub_len', 'ocoef', 'recip')
-#							W = lapply(vars, function(a) wilcox.test(fdf[[a]], mdf[[a]], alternative = 'g'))
-#							names(W) = vars
-#							return(ldply(W, function(w) data.frame(alt = w$alternative, p.value = w$p.value)))
-#					}
-#				)
+<<label=tab5.2, echo=FALSE, results=tex>>=
+l = aov(level ~ gender * p_gender, data = o.df)
+xtable(summary(l), cap = 'significants in level (order and disorder)', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
 
-fdf = subset(sdf, atype == 'H' & gender == 'Female') 
-mdf = subset(sdf, atype == 'F' & gender == 'Female')
-vars = c('level_speed', 'sub_len', 'ocoef', 'recip')
-W = lapply(vars, function(a) wilcox.test(fdf[[a]], mdf[[a]], alternative = 'g'))
-names(W) = vars
-g.wilcox.df = ldply(W, function(w) data.frame(alt = w$alternative, p.value = w$p.value))
-
-print	(
-			xtable(
-					g.wilcox.df,
-					digits = 4,
-					table.placement = 'tbp',
-					label = 'tab:type-wilcox-test-greater1',
-					caption = 'Hybrid vs Female using Wilcox Test'
-			)
-		)
-
-<<label=tab7, echo=FALSE, results=tex>>=
-
-fdf = subset(sdf, atype == 'H' & gender == 'Male') 
-mdf = subset(sdf, atype == 'M' & gender == 'Male')
-vars = c('level_speed', 'sub_len', 'ocoef', 'recip')
-W = lapply(vars, function(a) wilcox.test(fdf[[a]], mdf[[a]], alternative = 'g'))
-names(W) = vars
-g.wilcox.df = ldply(W, function(w) data.frame(alt = w$alternative, p.value = w$p.value))
-
-print	(
-			xtable(
-					g.wilcox.df,
-					digits = 4,
-					table.placement = 'tbp',
-					label = 'tab:type-wilcox-test-greater2',
-					caption = 'Hybrid vs Male using Wilcox Test'
-			)
-		)
+l = aov(level ~ gender * p_gender, data = h.df)
+xtable(summary(l), cap = 'significants in level', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
 @
 
-\section{Interactions in Gender}
-Interactions: the number of converseion sessions (1 day) between two avatars.
+level speed
+\begin{itemize}
+\item [order \& disorder] p-gender; $male > female$
+\item [hybrid] $MM > FF > FM > MF$
+\end{itemize}
 
-<<label=tab8, echo=FALSE, results=tex>>=
-idf = read.csv('../exp/doll_inter.csv', header = T, as.is = T)
-idf = transform	(
-					idf, 
-					g.pair = paste(gender.s, gender.r, sep=':'), 
-					a.pair = paste(atype.s, atype.r, sep = ':'), 
-					ag.pair = paste(atype.s, gender.s, atype.r, gender.r, sep=':')
-				)
+<<label=tab5.2.1, echo=FALSE, results=tex>>=
+l = aov(level_speed ~ gender * p_gender, data = o.df)
+xtable(summary(l), cap = 'significants in level speed (order and disorder)', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
 
-m = melt(idf, id = c('gender.s', 'atype.s', 'gender.r', 'atype.r'), measure.vars = 'interactions')
-
-print	(
-			xtable	(
-						cast(m, gender.s ~ gender.r + result_variable, function(x) c(count = length(x), mean = mean(x, na.rm = T))),
-						caption = 'Interaction Table (gender vs gender)', 
-						label = 'tab:interaction-gi-count', 
-						table.placement = 'tbp', 
-					)
-		)
-
-print	(
-			xtable	(
-						cast(m, atype.s ~ gender.r + result_variable, function(x) c(count = length(x), mean = mean(x, na.rm = T))),
-						caption = 'Interaction Table (type vs gender)', 
-						label = 'tab:interaction-gi-mean', 
-						table.placement = 'tbp', 
-					)
-		)
-
-print	(
-			xtable	(
-						cast(m, atype.s ~ atype.r + result_variable, function(x) c(count = length(x), mean = mean(x, na.rm = T))),
-						caption = 'Interaction Table (type vs type)', 
-						label = 'tab:interaction-ai-count', 
-						table.placement = 'tbp', 
-					)
-		)
-
-print	(
-			xtable	(
-						cast(m, atype.s + gender.s ~ atype.r + result_variable, function(x) c(count = length(x), mean = mean(x, na.rm = T))),
-						caption = 'Interaction Mean Table (type + gender vs type)', 
-						label = 'tab:interaction-ai-mean', 
-						table.placement = 'tbp', 
-					)
-		)
-
+l = aov(level_speed ~ gender * p_gender, data = h.df)
+xtable(summary(l), cap = 'significants in level speed', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
 @
 
+\clearpage
+\subsubsection{friend number}
+\begin{itemize}
+\item [order \& disorder] gender; $male > female$
+\item [hybrid] $MM > FF > FM > MF$
+\end{itemize}
+
+<<label=tab5.3, echo=FALSE, results=tex>>=
+l = aov(friend_num ~ gender * p_gender, data = o.df)
+xtable(summary(l), cap = 'significants in friend number (order and disorder)', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+
+l = aov(friend_num ~ gender * p_gender, data = h.df)
+xtable(summary(l), cap = 'significants in friend number', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+@
+
+\clearpage
+\subsubsection{activities}
+\begin{itemize}
+\item [order \& disorder] gender; $male > female$
+\item [hybrid] $FF > FM > MM >MF$
+\end{itemize}
+
+<<label=tab5.4, echo=FALSE, results=tex>>=
+l = aov(all_sum ~ gender * p_gender, data = o.df)
+xtable(summary(l), cap = 'significants in all sum (order and disorder)', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+
+l = aov(all_sum ~ gender * p_gender, data = h.df)
+xtable(summary(l), cap = 'significants in all sum', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+@
+
+\clearpage
+\subsubsection{reciprocity}
+\begin{itemize}
+\item [order \& disorder] $FM > MF > FF > MM$
+\item [hybrid] player gender; $female > male$
+\end{itemize}
+
+<<label=tab5.5, echo=FALSE, results=tex>>=
+l = aov(recip ~ gender * p_gender, data = o.df)
+xtable(summary(l), cap = 'significants in recip', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+
+l = aov(recip ~ gender * p_gender, data = h.df)
+xtable(summary(l), cap = 'significants in recip', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+@
+
+\clearpage
+\subsubsection{owl coefficient}
+\begin{itemize}
+\item [order \& disorder] avatar gender; $female > male$
+\item [hybrid] player gender; $female > male$
+\end{itemize}
+
+<<label=tab5.6, echo=FALSE, results=tex>>=
+l = aov(ocoef ~ gender * p_gender, data = o.df)
+xtable(summary(l), cap = 'significants in ocoef', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+
+l = aov(ocoef ~ gender * p_gender, data = h.df)
+xtable(summary(l), cap = 'significants in ocoef', digit = 4)
+xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+rm(o.df, h.df)
+@
+
+%\clearpage
+%\subsection{Anova Test on hybrid player}
+%Focus on hybrid players
+%Two way anova test to figure out which factors (player gender, or avatar gender) significantly effects the avatar behaviors.
+%To pairwisely comparison, we use the Tukey Test below.
+%
+%<<label=tab6, echo=TRUE, results=tex>>=
+%s.df = subset(data.df, m_type == 'hybrid')
+%s.df$p_gender = as.factor(s.df$p_gender)
+%nrow(s.df)
+%@
+%
+%<<label=tab6.1, echo=FALSE, results=tex>>=
+%l = aov(sub_len ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in subscription', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 5)
+%
+%l = aov(level ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in level', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(level_speed ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in level speed', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(friend_num ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in friend number', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(all_sum ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in all sum', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(recip ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in recip', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(ocoef ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in ocoef', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%rm(s.df)
+%@
+%
+%\clearpage
+%\subsection{Anova Test on order and disorder player (first account)}
+%Focus on order and disorder players
+%Two way anova test to figure out which factors (player gender, or avatar gender) significantly effects the avatar behaviors.
+%To pairwisely comparison, we use the Tukey Test below.
+%
+%<<label=tab7, echo=TRUE, results=tex>>=
+%s.df = subset(data.df, m_type %in% c('order', 'disorder') & is_first.account)
+%s.df$p_gender = as.factor(s.df$p_gender)
+%nrow(s.df)
+%@
+%
+%<<label=tab7.1, echo=FALSE, results=tex>>=
+%l = aov(sub_len ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in subscription', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 5)
+%
+%l = aov(level ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in level', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(level_speed ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in level speed', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(friend_num ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in friend number', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(all_sum ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in all sum', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(recip ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in recip', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(ocoef ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in ocoef', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%rm(s.df)
+%@
+%
+%\clearpage
+%\subsection{Anova Test on hybrid player (first account)}
+%Focus on hybrid players
+%Two way anova test to figure out which factors (player gender, or avatar gender) significantly effects the avatar behaviors.
+%To pairwisely comparison, we use the Tukey Test below.
+%
+%<<label=tab8, echo=TRUE, results=tex>>=
+%s.df = subset(data.df, m_type == 'hybrid' & is_first.account)
+%s.df$p_gender = as.factor(s.df$p_gender)
+%nrow(s.df)
+%@
+%
+%<<label=tab8.1, echo=FALSE, results=tex>>=
+%l = aov(sub_len ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in subscription', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 5)
+%
+%l = aov(level ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in level', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(level_speed ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in level speed', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(friend_num ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in friend number', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(all_sum ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in all sum', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(recip ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in recip', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(ocoef ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in ocoef', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%rm(s.df)
+%@
+%
+%\clearpage
+%\subsection{Anova Test on disorder player}
+%Focus on disorder players
+%Two way anova test to figure out which factors (player gender, or avatar gender) significantly effects the avatar behaviors.
+%To pairwisely comparison, we use the Tukey Test below.
+%
+%<<label=tab6, echo=TRUE, results=tex>>=
+%s.df = subset(data.df, m_type == 'disorder')
+%s.df$p_gender = as.factor(s.df$p_gender)
+%nrow(s.df)
+%@
+%
+%<<label=tab6.1, echo=FALSE, results=tex>>=
+%l = aov(sub_len ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in subscription', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 5)
+%
+%l = aov(level ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in level', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(level_speed ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in level speed', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(friend_num ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in friend number', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(all_sum ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in all sum', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(recip ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in recip', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%l = aov(ocoef ~ gender * p_gender, data = s.df)
+%xtable(summary(l), cap = 'significants in ocoef', digit = 4)
+%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
+%
+%rm(s.df)
+%@
 
 \end{document}
