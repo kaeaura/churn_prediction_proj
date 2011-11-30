@@ -1,0 +1,251 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amscd}
+\usepackage{longtable}
+\usepackage[tableposition=top]{caption}
+\usepackage{ifthen}
+\usepackage[utf8]{inputenc}
+
+\setlength{\topmargin}{0in}
+\setlength{\headheight}{0in}
+\setlength{\headsep}{0in}
+\setlength{\textheight}{8in}
+\setlength{\textwidth}{6.5in}
+\setlength{\oddsidemargin}{0in}
+\setlength{\evensidemargin}{0in}
+\setlength{\parindent}{0.25in}
+\setlength{\parskip}{0.25in}
+
+\begin{document}
+
+\title{Features in Gender}
+\author{Jing-Kai Lou}
+\maketitle
+
+<<label=load_dataset, echo=FALSE, results=tex>>=	
+# get data
+doc_wd = getwd()
+setwd('~/projects/churn_prediction/src')
+source('plot_eve.R')
+require('reporttools')
+setwd(doc_wd)
+@
+
+<<label=func:gen.feature, echo=FALSE, results=tex>>=
+get.signif <- function(p){
+	switch	(
+				findInterval(p, c(0, 0.001, 0.01, 0.05, 0.1, 1)),
+				'1' = '***',
+				'2' = '**',
+				'3' = '*',
+				'4' = '.',
+				'5' = ' ',
+				'E'
+			)
+}
+
+feature.on.char.table.generation <- function(s.df, caption = NULL, show.xtable = T) {
+	s.df$p_gender = factor(s.df$p_gender)
+	s.df$is_same_gender = s.df$gender == s.df$p_gender
+	s.df$gender_match = factor(s.df$is_same_gender, levels = c(TRUE, FALSE), labels = c('SS', 'OS'))
+
+	char.gender.ans.vec = character()
+	player.gender.ans.vec = character()
+	matched.gender.ans.vec = character()
+	dominated.ans.vec = character()
+
+	measure.features = c('sub_len', 'level', 'level_speed', 'family_num', 'friend_num', 'all_sum', 'recip', 'ocoef')
+	for (measure.feature in measure.features) {
+		# q1: gender slot
+		l = aov(get(measure.feature) ~ gender, data = s.df)
+		p.value = summary(l)[[1]]$"Pr(>F)"[1]
+		s = get.signif(p.value)
+		post.doc = TukeyHSD(l)
+		r.diff = post.doc[[1]][1]
+		r.names = strsplit(row.names(post.doc[[1]]), '-')[[1]]
+		if (s == ' ') {
+			ans = '~'
+		} else {
+			ans = paste(ifelse(r.diff > 0, r.names[1], r.names[2]), s, sep = ' ')
+		}
+		char.gender.ans.vec = c(char.gender.ans.vec, ans)
+		# q2: p_gender slot
+		l = aov(get(measure.feature) ~ p_gender, data = s.df)
+		p.value = summary(l)[[1]]$"Pr(>F)"[1]
+		s = get.signif(p.value)
+		post.doc = TukeyHSD(l)
+		r.diff = post.doc[[1]][1]
+		r.names = strsplit(row.names(post.doc[[1]]), '-')[[1]]
+		if (s == ' ') {
+			ans = '~'
+		} else {
+			ans = paste(ifelse(r.diff > 0, r.names[1], r.names[2]), s, sep = ' ')
+		}
+		player.gender.ans.vec = c(player.gender.ans.vec, ans)
+		# q3: same_gender slot
+		l = aov(get(measure.feature) ~ gender_match, data = s.df)
+		p.value = summary(l)[[1]]$"Pr(>F)"[1]
+		s = get.signif(p.value)
+		post.doc = TukeyHSD(l)
+		r.diff = post.doc[[1]][1]
+		r.names = strsplit(row.names(post.doc[[1]]), '-')[[1]]
+		if (s == ' ') {
+			ans = '~'
+		} else {
+			ans = paste(ifelse(r.diff > 0, r.names[1], r.names[2]), s, sep = ' ')
+		}
+		matched.gender.ans.vec = c(matched.gender.ans.vec, ans)
+		# q4: gender * p_gender slot 
+		l = aov(get(measure.feature) ~ gender * p_gender, data = s.df)
+		p.value = summary(l)[[1]]$"Pr(>F)"[3]
+		s = get.signif(p.value)
+		post.doc = TukeyHSD(l)
+		compet.items = c('Male:Male', 'Male:Female', 'Female:Male', 'Female:Female')
+		r.diff = post.doc[[3]][,1]
+		r.names.list = strsplit(row.names(post.doc[[3]]), '-')
+		compet.df = cbind(ldply(r.names.list, function(x) match(x, compet.items)), diff = r.diff)
+		ranking = sort(table(c(compet.items, compet.items[apply(compet.df, 1, function(x) ifelse(x[3] > 0, x[1], x[2]))])), decreasing = T)
+		ranking.df = ldply(strsplit(names(ranking), ':'))
+		is.matched.pair.in.edge = all(apply(ranking.df, 1, function(x) !all(!duplicated(x)))[c(1, nrow(ranking.df))])
+		if(is.matched.pair.in.edge) {
+			is.dominated = apply(ranking.df[1:2,], 2, function(x) any(duplicated(x)))
+			ans = paste(c('gender', 'p_gender')[which(is.dominated)], s, sep = ' ')
+		} else {
+			ans = '~'
+		}
+		dominated.ans.vec = c(dominated.ans.vec, ans)
+	}
+	ans.df = data.frame	(char.gender = char.gender.ans.vec, player.gender = player.gender.ans.vec, matched.gender = matched.gender.ans.vec, domination = dominated.ans.vec)
+	row.names(ans.df) = measure.features
+
+	if (show.xtable) {
+		xtable(ans.df, caption = caption)
+	} else {
+		return(ans.df)
+	}
+}
+
+feature.on.player.table.population <- function(s.df, caption = NULL, show.xtable = F) {
+	s.df = ddply(s.df, .(m_id), function(x)
+		if (all(x$p_gender == x$gender)) {
+			transform(x, player_type = 'SS')[which.max(x$sub_len),]
+		} else if (all(x$p_gender != x$gender)) {
+			transform(x, player_type = 'OS')[which.max(x$sub_len),]
+		} else {
+			transform(x, player_type = 'Other')[which.max(x$sub_len),]
+		}
+	)
+	stopifnot(!any(duplicated(s.df$m_id)))
+
+	tbl = table(s.df$player_type)[c('SS', 'OS', 'Other')]
+	if (show.xtable) {
+		xtable(tbl, caption = caption)
+	} else {
+		return(tbl)
+	}
+}
+
+feature.on.player.table.generation <- function(s.df, caption = NULL, show.xtable = F) {
+	s.df = ddply(s.df, .(m_id), function(x)
+		if (all(x$p_gender == x$gender)) {
+			transform(x, player_type = 'SS')[which.max(x$sub_len),]
+		} else if (all(x$p_gender != x$gender)) {
+			transform(x, player_type = 'OS')[which.max(x$sub_len),]
+		} else {
+			transform(x, player_type = 'Other')[which.max(x$sub_len),]
+		}
+	)
+
+	player.type.hist = table(s.df$player_type)
+	if (any( player.type.hist < 30)) {
+		cat(sprintf('Too few records in type %s\n', names(player.type.hist)[which.min(player.type.hist)]))
+	} else {
+		player.ans.vec = character()
+		measure.features = c('sub_len', 'level', 'level_speed', 'family_num', 'friend_num', 'all_sum', 'recip', 'ocoef')
+		for (measure.feature in measure.features) {
+			# q1: player slot
+			l = aov(get(measure.feature) ~ player_type, data = s.df)
+			p.value = summary(l)[[1]]$"Pr(>F)"[1]
+			s = get.signif(p.value)
+			post.doc = TukeyHSD(l)
+			compet.items = c('OS', 'SS', 'Other')
+			r.diff = post.doc[[1]][,1]
+			r.names.list = strsplit(row.names(post.doc[[1]]), '-')
+			compet.df = cbind(ldply(r.names.list, function(x) match(x, compet.items)), diff = r.diff)
+			ranking = sort(table(c(compet.items, compet.items[apply(compet.df, 1, function(x) ifelse(x[3] > 0, x[1], x[2]))])), decreasing = T)
+			ans = paste(names(ranking)[1], s, sep = ' ')
+
+			player.ans.vec = c(player.ans.vec, ans)
+		}
+	}
+
+	ans.df = data.frame(player.type = player.ans.vec)
+	row.names(ans.df) = measure.features
+	if(show.xtable) {
+		xtable(ans.df)
+	} else {
+		return(ans.df)
+	}
+}
+@
+
+\section{Characters}
+Compare the features in different character groups
+Note: significatn: $0.001: `***', 0.01: `**', 0.05: `*', 0.1: ``.'', 1: ``{}''$
+
+<<label=tab:char.all, echo=FALSE, results=tex>>=
+# for the table 1 (feature table)
+feature.on.char.table.generation(data.df, caption = 'All characters')
+@
+
+\clearpage
+<<label=tab:char.realm, echo=FALSE, results=tex>>=
+feature.on.char.table.generation(subset(data.df, label == 'AND'), caption = 'AND')
+feature.on.char.table.generation(subset(data.df, label == 'MER'), caption = 'MER')
+feature.on.char.table.generation(subset(data.df, label == 'RED'), caption = 'RED')
+feature.on.char.table.generation(subset(data.df, label == 'GRE'), caption = 'GRE')
+feature.on.char.table.generation(subset(data.df, label == 'WOL'), caption = 'WOL')
+feature.on.char.table.generation(subset(data.df, label == 'DOL'), caption = 'DOL')
+feature.on.char.table.generation(subset(data.df, label == 'ALI'), caption = 'ALI')
+@
+
+\clearpage
+\section{Players}
+Compare the features in different player groups
+Testing Realm: all AND MER RED GRE WOL DOL ALI
+
+<<label=tab:all, echo=FALSE, results=tex>>=
+# for the table 2: construct the plyer-type attributes: always ss, always os, and others
+c.df = feature.on.player.table.generation (data.df, caption = 'All players')
+c1.df = feature.on.player.table.generation(subset(data.df, label == 'AND'))
+c2.df = feature.on.player.table.generation(subset(data.df, label == 'MER'))
+c3.df = feature.on.player.table.generation(subset(data.df, label == 'RED'))
+c4.df = feature.on.player.table.generation(subset(data.df, label == 'GRE'))
+c5.df = feature.on.player.table.generation(subset(data.df, label == 'WOL'))
+c6.df = feature.on.player.table.generation(subset(data.df, label == 'DOL'))
+c7.df = feature.on.player.table.generation(subset(data.df, label == 'ALI'))
+
+c.df = cbind(c.df, c1.df, c2.df, c3.df, c4.df, c5.df, c6.df, c7.df)
+names(c.df) = c('All', 'AND', 'MER', 'RED', 'GRE', 'WOL', 'DOL', 'ALI')
+
+xtable	(
+			c.df,
+			caption = 'Player Groups. OS: always oppsite gender; SS: always same gender; Others: the others'
+		)
+
+p = feature.on.player.table.population(data.df, 'all')
+p1 = feature.on.player.table.population(subset(data.df, label == 'AND'), caption = 'AND')
+p2 = feature.on.player.table.population(subset(data.df, label == 'MER'), caption = 'MER')
+p3 = feature.on.player.table.population(subset(data.df, label == 'RED'), caption = 'RED')
+p4 = feature.on.player.table.population(subset(data.df, label == 'GRE'), caption = 'GRE')
+p5 = feature.on.player.table.population(subset(data.df, label == 'WOL'), caption = 'WOL')
+p6 = feature.on.player.table.population(subset(data.df, label == 'DOL'), caption = 'DOL')
+p7 = feature.on.player.table.population(subset(data.df, label == 'ALI'), caption = 'ALI')
+
+xtable	(
+			data.frame(ALL = p, AND = p1, MER = p2, RED = p3, GRE = p4, WOL = p5, DOL = p6, ALI = p7),
+			caption = 'Player population in Realms'
+		)
+@
+
+\end{document}

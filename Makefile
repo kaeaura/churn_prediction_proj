@@ -30,8 +30,10 @@ REALMS = alice mermaid anderson doll green red wolf
 CHANNELS = tell say party family 
 
 
-sweave: dataset_summary.Rnw
-	R CMD Sweave dataset_summary.Rnw && pdflatex dataset_summary.tex; pdflatex dataset_summary.tex
+sweave: doc/feature_report.Rnw
+	cd doc ;\
+	R CMD Sweave feature_report.Rnw ; \
+	test -e feature_report.tex && pdflatex feature_report.tex; pdflatex feature_report.tex ;
 
 clear:
 	rm -f *.pyc

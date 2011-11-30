@@ -378,18 +378,19 @@ Two way anova test to figure out which factors (player gender, or avatar gender)
 To pairwisely comparison, we use the Tukey Test below.
 
 <<label=tab5, echo=TRUE, results=tex>>=
-o.df = subset(data.df, m_type %in% c('order', 'disorder'))
+o.df = subset(data.df, m_type %in% c('order', 'disorder') & is_first.account)
 o.df$p_gender = as.factor(o.df$p_gender)
 nrow(o.df)
 
-h.df = subset(data.df, m_type == 'hybrid')
+table(o.df$m_type)
+
+h.df = subset(data.df, m_type == 'hybrid' & is_first.account)
 h.df$p_gender = as.factor(h.df$p_gender)
 nrow(h.df)
 
-d.df = subset(data.df, m_type == 'disorder')
-d.df$p_gender = as.factor(d.df$p_gender)
-nrow(o.df)
+char.df = data.frame()
 @
+
 \clearpage
 \subsubsection{subscription}
 consistency: $FF > MM > MF > FM$, where the first digit indicates the avatar gender and the second digit indicates the player gender
@@ -400,10 +401,6 @@ xtable(summary(l), cap = 'significants in subscription (order and disorder)', di
 xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing (order and disorder)', digit = 5)
 
 l = aov(sub_len ~ gender * p_gender, data = h.df)
-xtable(summary(l), cap = 'significants in subscription (hybrid)', digit = 4)
-xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing (hybrid)', digit = 5)
-
-l = aov(sub_len ~ gender * p_gender, data = d.df)
 xtable(summary(l), cap = 'significants in subscription (hybrid)', digit = 4)
 xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing (hybrid)', digit = 5)
 @
@@ -510,181 +507,5 @@ xtable(summary(l), cap = 'significants in ocoef', digit = 4)
 xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
 rm(o.df, h.df)
 @
-
-%\clearpage
-%\subsection{Anova Test on hybrid player}
-%Focus on hybrid players
-%Two way anova test to figure out which factors (player gender, or avatar gender) significantly effects the avatar behaviors.
-%To pairwisely comparison, we use the Tukey Test below.
-%
-%<<label=tab6, echo=TRUE, results=tex>>=
-%s.df = subset(data.df, m_type == 'hybrid')
-%s.df$p_gender = as.factor(s.df$p_gender)
-%nrow(s.df)
-%@
-%
-%<<label=tab6.1, echo=FALSE, results=tex>>=
-%l = aov(sub_len ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in subscription', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 5)
-%
-%l = aov(level ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in level', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(level_speed ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in level speed', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(friend_num ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in friend number', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(all_sum ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in all sum', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(recip ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in recip', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(ocoef ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in ocoef', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%rm(s.df)
-%@
-%
-%\clearpage
-%\subsection{Anova Test on order and disorder player (first account)}
-%Focus on order and disorder players
-%Two way anova test to figure out which factors (player gender, or avatar gender) significantly effects the avatar behaviors.
-%To pairwisely comparison, we use the Tukey Test below.
-%
-%<<label=tab7, echo=TRUE, results=tex>>=
-%s.df = subset(data.df, m_type %in% c('order', 'disorder') & is_first.account)
-%s.df$p_gender = as.factor(s.df$p_gender)
-%nrow(s.df)
-%@
-%
-%<<label=tab7.1, echo=FALSE, results=tex>>=
-%l = aov(sub_len ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in subscription', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 5)
-%
-%l = aov(level ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in level', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(level_speed ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in level speed', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(friend_num ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in friend number', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(all_sum ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in all sum', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(recip ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in recip', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(ocoef ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in ocoef', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%rm(s.df)
-%@
-%
-%\clearpage
-%\subsection{Anova Test on hybrid player (first account)}
-%Focus on hybrid players
-%Two way anova test to figure out which factors (player gender, or avatar gender) significantly effects the avatar behaviors.
-%To pairwisely comparison, we use the Tukey Test below.
-%
-%<<label=tab8, echo=TRUE, results=tex>>=
-%s.df = subset(data.df, m_type == 'hybrid' & is_first.account)
-%s.df$p_gender = as.factor(s.df$p_gender)
-%nrow(s.df)
-%@
-%
-%<<label=tab8.1, echo=FALSE, results=tex>>=
-%l = aov(sub_len ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in subscription', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 5)
-%
-%l = aov(level ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in level', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(level_speed ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in level speed', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(friend_num ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in friend number', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(all_sum ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in all sum', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(recip ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in recip', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(ocoef ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in ocoef', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%rm(s.df)
-%@
-%
-%\clearpage
-%\subsection{Anova Test on disorder player}
-%Focus on disorder players
-%Two way anova test to figure out which factors (player gender, or avatar gender) significantly effects the avatar behaviors.
-%To pairwisely comparison, we use the Tukey Test below.
-%
-%<<label=tab6, echo=TRUE, results=tex>>=
-%s.df = subset(data.df, m_type == 'disorder')
-%s.df$p_gender = as.factor(s.df$p_gender)
-%nrow(s.df)
-%@
-%
-%<<label=tab6.1, echo=FALSE, results=tex>>=
-%l = aov(sub_len ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in subscription', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 5)
-%
-%l = aov(level ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in level', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(level_speed ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in level speed', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(friend_num ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in friend number', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(all_sum ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in all sum', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(recip ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in recip', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%l = aov(ocoef ~ gender * p_gender, data = s.df)
-%xtable(summary(l), cap = 'significants in ocoef', digit = 4)
-%xtable(TukeyHSD(l)[[which.min(summary(l)[[1]][[5]])]], cap = 'post-hoc testing', digit = 4)
-%
-%rm(s.df)
-%@
 
 \end{document}

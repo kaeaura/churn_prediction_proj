@@ -8,17 +8,20 @@ BEGIN{
 }
 
 # numberic string with length more than 8
-$c ~ /^[0-9]+$/ && length($c) >= 8{
+$c ~ /^[0-9]+$/ {
 
-	year	= substr($c, 1, 4)
-	month	= substr($c, 5, 2)
-	day		= substr($c, 7, 2)
-
-	if (unit == "year") {
+	if (length($c) >= 4)
+		year	= substr($c, 1, 4)
+	if (length($c) >= 6)
+		month	= substr($c, 5, 2)
+	if (length($c) >= 8)
+		day		= substr($c, 7, 2)
+		
+	if (unit == "year" && year != "") {
 		outfile = FILENAME"_"year
-	} else if (unit == "month") {
+	} else if (unit == "month" && month != "") {
 		outfile = FILENAME"_"year"-"month
-	} else if (unit == "day") {
+	} else if (unit == "day" && day != "") {
 		outfile = FILENAME"_"year"-"month"-"day
 	} else {
 		print "Var: unit error"

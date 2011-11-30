@@ -1,4 +1,9 @@
 Meetings:
+	- 2011/11/23
+		- Topics:
+			- Finder the leaders and predict the leaders in MMOG
+			- Predict if the player will be online in the near future
+			- Prove the exisitence of the players in Bartle test: Achivers, Explorers, Socializers, and Killers 
 	- 2011/09/30 
 		- 問題逐一回答, 以題目命名圖檔
 		- CDF
@@ -18,157 +23,38 @@ Meetings:
 			- 同一個帳號若有多重角色性別的話，他／她的男／女角色會跟什麼性別的角色互 動？是主動或被動？
 		- part 2: realm issue: realm的特質是否影響玩家的行為?
 			- factors: realm period, realm size, realm freshness
-Goal
 
-	- In-game features
-		- Relation between character gender and character race among realms
-		- Relation between character gender and character level among realms
-		- Relation between character gender and character level among realms
+Topics: Basic Observation in Players and Characters in MMOG
+	- report file: doc/dataset_summary.Rnw
+	- trace:
+		# nyx server
+		realm		users		actsize		range				months	parts	gen
+		alice		73275		219M		2003-11 ~ 2004-04	6		3		18 * 4
+		mermaid		112087		2.3G		2003-09 ~ 2004-05	8		3 (+1)	24 * 4
+		doll		135910		4.2G		2003-04 ~ 2004-05	14		5		70 * 4
+		anderson	252917		9.7G		2003-03 ~ 2004-05	15		9		135 * 4
+		# baal server
+		wolf		189885		4.9G		2003-03 ~ 2004-05	12		7		90 * 4
+		red			167876		5.3G		2003-03 ~ 2004-05	15		6		105
+		green		211757		9.1G		2003-03 ~ 2004-05	-		-
+	- data:
+			content in pickle: 
+				dictionary:
+					key: character-id
+					value: Char class [mold_saver.py] (Attribute + Activity + Events)
 
-	- 遊戲中角色性別與種族之間的關聯
-			- In-Game Observation: 兩兩相互比較
-				- Avatar characteristic
-					- population
-						- growth trend
-							- first 4 months can achieve average 60% total population
-							- but decays fast, visit population often drops 3 months later since launched
-						- growth trend in char. population vs account population 
-							- similar, accounts seems to be more smooth
-						- growth rate rank:
-							- ALI > MER > RED > AND > DOL > WOL
-						- growht rate rank factors may related to?
-							- population size?
-							- many guilds?
-							- more female? (or more male?)
-					- gender 
-						- gender ratio balance? (chisq.test)
-							- imbalance, # male char. > # female char.
-						- gender consistancy in accounts
-							- very consistancy
-							- three clusters: all-female (1), half-male (2), all-male (3)
-								- realm: alice
-								- members: 434, 387, 556
-								- mean tv (trim 0.1): 540.2, 436.3, 484.1
-								- mean fv (trim 0.1): 305.4, 255.2, 282.0 - mean level (trim 0.1): 27.6, 26.0, 28.6
-								- mean sub_len (trim 0.1): 62.9, 58.65, 58,84
-								- mean ocoef (trim 0.1): 0.244, 0.215, 0.218
-								- mean friend num (trim 0.1): 15.97, 14.98, 14.41
-								- mean guild num (trim 0.1): 1.19, 0.99, 1.09
-								- mean guild rank (trim 0.1): 0.89, 0.77, 0.83
-						- ratio in each realm equal? (prop.test)
-							- barely eqaul
-						- gender ratio changes significatntly over time? 
-							- female char. increases, but not significantly
-						- whats the main difference of players favors in different character gender?
-							- level
-							- subscription length
-							- owl-coefficient
-					- race
-						- race ratio balance? (chisq.test)
-						- race consistancy in accounts
-							- not consistancy
-						- ratio in each realm equal? (prop.test)
-						- gender ratio changes significatntly over time?
-					- level
-					- time: joined time, subscription length
-					- guild (bool)
-					- world: time, observation length, population
-				- Figure
-					- figure 1: population over time:
-					- figure 2: gender ratio (over realm)
-						- consistency in different realm (in all game)
-					- race ratio (over realm)
-						- consistency in different realm (in all game)
-					- gender in race (over realm)
-						- consistency in different realm (in all game)
-					- level distribution in gender (over realm)
-						- consistency in different realm (in all game)
-						- will the gender of character affect the leveling?
-						- not much (how to test, the distribution similarity?)
-					- level distribution in race (over realm)
-						- will the race of character affect the leveling?
-						- not much
-					- 
-			- Out-Game Infer.
-				- Player characteristic
-					- Nigth Owl
-					- Addiction
-				- Cross Validation
-					- Player real data
-						- city vs outtown
-						- age
-						- gender
-			- Single Interaction
-				- Channel (4)
-				- Trade (2)
-				- Guild Post (?)
-			- World Culture
-				- vs out-game infer.
-				- vs in-game properties
-		- Structure Needed:
-			- section name! section question! significatnt section conclusion!
-analysis:
-gender issue
-	In overview, male characters number is greater then female character number
-	Male ratio in six realms:
-		alice, 57.4%
-		anderson, 65.5%
-		doll, 65.0%
-		* mermaid, 53.4% (smallest)
-		red, 57.5%
-		* wolf, 68.2% (largest)
-	The cumulative ratio over time in six realms:
-		alice, male strictly decreases from 59.3% to 57.4% (-1.9%)
-		anderson, male decreases from 67.8% to 65.5% (-2.2%)
-		* doll, male decreases from 67.7% to 65.0% (-2.7%) (largest decreasement)
-		* mermaid, male stay low 53.4% (0%)
-		red, male decreases from 60.0% to 57.5% (-2.5%)
-		wolf, male decreases from 71.2% to 68.2% (-2%)
+			group size: 30000 users
+			time-slot size: 1 month
+			file table:
+						time slot
+						T1		T2		...
+				group
+				G1		G1T1	...
+				G2		...
 
-race issue
-	In overview, human is the largest race , elf is the second large race, and dwarf is the smallest race. Average speaking, the ratio for human, elf, and drawf would be 5:3:2 respectively. The population in elf is slightly fading out over time.
-
-	Elf population declines
-		alice, 30.5% to 30.4%
-		anderson, 32.9% to 29.1%
-		doll, 32.1% to 28.6%
-		mermaid 33.0% to 30.3%
-		red 32.6% to 30.6%
-		wolf, 32.1% to 28.5%
-
-gender vs race issue:
-	gender ratio in elf race is the most balance, and the male ratio is relative higher in human race and drawf race. Interestingly, the female ratio in elf declines overtime.
-
-trace:
-	# nyx
-	realm		users		actsize		range				months	parts	gen
-	alice		73275		219M		2003-11 ~ 2004-04	6		3		18 * 4
-	mermaid		112087		2.3G		2003-09 ~ 2004-05	8		3 (+1)	24 * 4
-	doll		135910		4.2G		2003-04 ~ 2004-05	14		5		70 * 4
-	anderson	252917		9.7G		2003-03 ~ 2004-05	15		9		135 * 4
-	# baal
-	wolf		189885		4.9G		2003-03 ~ 2004-05	12		7		90 * 4
-	red			167876		5.3G		2003-03 ~ 2004-05	15		6		105
-	green		211757		9.1G		2003-03 ~ 2004-05	-		-
-
-data:
-	content in pickle: 
-		dictionary:
-			key: character-id
-			value: Char class [mold_saver.py] (Attribute + Activity + Events)
-
-	group size: 30000 users
-	time-slot size: 1 month
-	file table:
-				time slot
-				T1		T2		...
-		group
-		G1		G1T1	...
-		G2		...
-
-	action needed: 
-		- bind: (G1T1 + G2T1) load two pickle files and zip the two dicts 
-		- update: (G1T1 + G1T2) load two pickle files and merge them
+			action needed: 
+				- bind: (G1T1 + G2T1) load two pickle files and zip the two dicts 
+				- update: (G1T1 + G1T2) load two pickle files and merge them
 
 source:
 	commander:

@@ -22,7 +22,7 @@
 cat('--loading-library\n')
 require('ggplot2')
 require('reshape')
-source('my.fig.R')
+#source('my.fig.R')
 source('included.R')
 
 # functions =============================================================================
@@ -47,7 +47,7 @@ fig_dir = '../fig'
 if (!file.exists(fig_dir)) dir.create(fig_dir)
 enable_post_process = F
 default_infile = '../exp/temp.txt'
-member_infile = '../exp/member.csv'
+member_infile = '../exp/members.csv'
 
 options(digits = 4)
 
@@ -116,7 +116,7 @@ if (enable_post_process) {
 		pg = as.character(member.df$p_gender)
 		member.df$p_gender = factor(pg, level = c('男', '女'), labels = c('Male', 'Female'))
 	} else {
-		cat(sprintf('file: %s does not exist!\n', member_infilea))
+		cat(sprintf('file: %s does not exist!\n', member_infile))
 	}
 
 	data.df <- within(
@@ -124,6 +124,7 @@ if (enable_post_process) {
 				gender = factor(data.df$gender, labels = c('Male', 'Female'))
 				race = factor(data.df$race, labels = c('Human', 'Elf', 'Dwarf'))
 				label = as.factor(data.df$label)
+				family_joined = data.df$familyNum > 0
 				ocoef = apply	(
 									subset(data.df, select=c(ts_stream, tl_stream, s_stream, p_stream, f_stream)), 
 									1, 
@@ -138,17 +139,13 @@ if (enable_post_process) {
 				f_sum = stream_to_value(data.df$f_stream)
 				dmonth = substr(data.df$ddate, 1, 6)
 				emonth = substr(data.df$edate, 1, 6)
-				rm(ddate, edate, ts_stream, tl_stream, s_stream, p_stream, f_stream)
+				rm(ts_stream, tl_stream, s_stream, p_stream, f_stream)
 			}
 		)
 
-	data.df = rename(data.df, c(friendNum = "friend_num", familyRank = "family_pos", familyNum = "family_num"))
+	# rename colnames
+	data.df = rename(data.df, c(cid = "c_id", friendNum = "friend_num", familyRank = "family_pos", familyNum = "family_num"))
 
-	# noise filter
-	data.df = subset(data.df, sub_len > 3 & t_sum + l_sum + s_sum + p_sum + f_sum > 10)
-
-	# merge the member data.frame
-	data.df = merge(data.df, member.df, by = 'account')
 
 	# newly add features
 	data.df = transform	(
@@ -157,19 +154,72 @@ if (enable_post_process) {
 							level_speed = level / sub_len, 
 							recip = l_sum / (t_sum + l_sum)
 						)
-	data.df = ddply	(
-						data.df,
-						.(account),
-						transform,
-						gender_ratio = sum(gender == 'Male') / length(gender)
+
+	# merge the member data.frame
+	data.df = merge(data.df, member.df, by = 'account')
+
+	# noise filter
+	data.df = subset(data.df, sub_len > 3 & t_sum + l_sum + s_sum + p_sum + f_sum > 10)
+
+	# unique cid
+	data.df = ddply	(data.df, 
+						.(paste(account, c_id, sep = ':')), 
+						function(x) { 
+							if(nrow(x) > 1) {
+								x[which.max(x$all_sum),]
+							}else{
+								x
+							}
+						}
 					)
 
-	k = kmeans(data.df$gender_ratio, 3)
-	data.df$atype = factor(k$cluster, level = order(k$center), label = c('F', 'H', 'M'))
-	data.df = ddply(data.df, .(account), transform, acc_num = length(account))
+	# insert the realm information
+	data.df = ddply(data.df, .(label), transform, realm_population = length(label), realm_dmonth = min(dmonth), realm_emonth = max(emonth))
 
-	print ('done')
+	# first avatar
+	first.avatar = ddply(data.df, .(account), function(x) x$c_id[which.min(x$ddate)])
+	first.avatar = rename(first.avatar, c(V1 = 'c_id'))
+	data.df$is_first_avatar = paste(data.df$account, data.df$c_id) %in% paste(first.avatar$account, first.avatar$c_id)
+	rm(first.avatar)
+
+	# first account
+	first.account = ddply(data.df, .(m_id), function(x) x$account[which.min(x$ddate)])
+	first.account = rename(first.account, c(V1 = 'account'))
+	data.df$is_first.account = paste(data.df$account, data.df$account) %in% paste(first.account$account, first.account$account)
+	rm(first.account)
+
+	# type of account
+	data.df = ddply	(
+						data.df, 
+						.(account), 
+						function(x) { 
+										if (all(x$gender == x$p_gender)) { 
+											transform(x, a_type = 'order')
+										} else if (all(x$gender != x$p_gender)) {
+											transform(x, a_type = 'disorder')
+										} else {
+											transform(x, a_type = 'hybrid')
+										}
+									}
+					)
+
+	# type of member
+	data.df = ddply	(
+						data.df, 
+						.(m_id), 
+						function(x) { 
+										if (all(x$gender == x$p_gender)) { 
+											transform(x, m_type = 'order')
+										} else if (all(x$gender != x$p_gender)) {
+											transform(x, m_type = 'disorder')
+										} else {
+											transform(x, m_type = 'hybrid')
+										}
+									}
+					)
+
 	write.csv(data.df, file = '../exp/temp.txt', row.names = F, quote = F)
+	print ('done')
 }
 
 if (any(names(data.df) == 'gender') && !is.factor(data.df$gender)) data.df$gender = as.factor(data.df$gender)
