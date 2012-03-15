@@ -1,3 +1,10 @@
-.pyc
-.DS_Store
-.swp
+doc/*
+suspend/*
+testing_files/*
+*.pyc
+*.DS_Store
+*.swp
+*.aux
+*.sty
+*.log
+*.csv

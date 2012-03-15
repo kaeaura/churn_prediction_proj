@@ -17,42 +17,74 @@ from collections import defaultdict, Counter
 
 __author__ = "Jing-Kai Lou (kaeaura@gmail.com)"
 
-class GraphSeries():
-	def __init__(self, tDict, is_directed, lifespan = 7, step = 1):
-		self.timeslots = tDict
+class EdgeSeries(defaultdict):
+	"""
+	This class is used to handle a series of edges with time-series, and perform a manipulation on them.
+	key: datetime obj, timestamp
+	values: iterable obj, edgelists
+
+	is_directed: determine the type of graph when creating graphs. creating directed graphs by default
+	lifespan: the length of observation period (i.e. to cumulate the edges). 1 week by default
+	"""
+	def __init__(self, is_directed = True, lifespan = 7):
+		"""set default parameters"""
 		self.isDirected = is_directed
-		self.dDay, self.eDay = self.get_date_range()
-		self.currentDay = self.dDay
 		self.lifespan = lifespan
-		self.step = step
+		self.dDay, self.eDay, self.currentDay = None, None, None
+	def setup(self):
+		"""set up the current date, start date, and the end date"""
+		if self.__len__():
+			self.dDay, self.eDay = self.get_date_range()
+			self.currentDay = self.dDay
 	def flush(self):
-		"""docstring for flush"""
-		self.currentDay = self.dDay
+		"""set the current date as the start date (the minimum timespam key)"""
+		if self.currentDay is not None and self.dDay is not None:
+			self.currentDay = self.dDay
 	def get_date_range(self):
-		"""return the date range """
-		if self.timeslots:
-			return(min(self.timeslots.keys()), max(self.timeslots.keys()))
-	def shift(self, step = self.step):
-		"""docstring for shift"""
+		"""return the date range of keys"""
+		if self.__len__():
+			return(min(self.keys()), max(self.keys()))
+	def next(self, step = 1):
+		"""currentday + 1"""
 		self.currentDay += datetime.timedelta(days = step)
-	def forward(self):
-		"""docstring for forward"""
-		def edgeCounter(edgeSet):
-			c = Counter()
-			for e in edgeSet:
+	def count_value(self, key):
+		"""count the edges"""
+		c = Counter()
+		if self.__contains__(key):
+			for e in self[key]:
 				c[e] += 1
-			return(c)
+		return(c)
+	def count_values(self, lifespan = None):
+		"""docstring for count_values"""
+		span = self.lifespan if lifespan is None else lifespan
 		totalCount = Counter()
-		for sd in itertools.ifilter(lambda x: self.lifespan >= (self.currentDay - x).days >= 0, self.timeslots.keys()):
-			totalCount.update(edgeCounter(self.timeslots[sd]))
-		d = dict(totalCount)
+		for key in itertools.ifilter(lambda x: span >= (self.currentDay - x).days >= 0, self.keys()):
+			totalCount.update(self.count_value(key))
+		return(totalCount)
+	def create_graph(self, weighted_ebunch, node_attr = None, edge_attr = None):
+		"""create graphs according to the dictionary items"""
+		gName = self.currentDay.__format__('%Y-%m-%d')
+		g = nx.DiGraph(name = gName) if self.isDirected else nx.Graph(name = gName)
+		g.add_weighted_edges_from(weighted_ebunch)
+		return(g)
+	def attach_node_attr(self, g, node_attr, node_attr_name = "family"):
+		"""attach the node attributes to the created graph"""
+		# make sure that the node attributes only
+		nx.set_node_attributes(g, node_attr_name, {k: node_attr[k] for k in filter(lambda x: node_attr.__contains__(x), g.nodes_iter())})
+		return(g)
+	def forward(self, step = 1, enable_attachment = False, **kwargs):
+		"""
+		collect the past <lifespan> days data until currentday and then return a graph object base on these data.
+		move the current day 1 day ahead
+		"""
+		d = dict(self.count_values())
 		subE = [(i, j, d[(i, j)]) for i, j in d.iterkeys()]
-		subGName = self.currentDay.__format__('%Y-%m-%d')
-		subG = nx.DiGraph(name = subGName) if self.isDirected else nx.Graph(name = subGName)
-		subG.add_weighted_edges_from(subE)
-		self.shift()
-		del totalCount, subE
-		return(subG)
+		g = self.create_graph(weighted_ebunch = subE)
+		if enable_attachment:
+			for key in kwargs:
+				g = self.attach_node_attr(g, node_attr = kwargs[key], node_attr_name = key)
+		self.next(step = step)
+		return(g)
 
 def _itemToWeight(item):
 	"""docstring for dictToWeights"""
@@ -194,8 +226,6 @@ def _toGraph(eTimeDict, as_directed = True, as_simple = True, weight = "weight")
 	else:
 		G = nx.MultiDiGraph() if as_directed else nx.MultiGraph()
 	if len(eTimeDict.keys()):
-		#G.add_edges_from(map(lambda x: (x[0][0], x[0][1], {weight: x[1]}), edgeDict.items()))
-		#G.add_edges_from(map(lambda x: (x[0][0], x[0][1], {weight: x[1]}), eTimeDict.items()))
 		G.add_weighted_edges_from(map(lambda x: _itemToWeight(x), eTimeDict.items()))
 		G.remove_edges_from(G.selfloop_edges())
 	return(G)
@@ -203,34 +233,42 @@ def _toGraph(eTimeDict, as_directed = True, as_simple = True, weight = "weight")
 def main(argv):
 	"""readling the logs, and save it in pickle format"""
 	try:
-		opts, args = getopt.getopt(argv, "hi:m:f:S:o:s:ud:v:", ["help"])
+		opts, args = getopt.getopt(argv, "hi:m:f:S:o:s:xN:ud:vw:", ["help"])
 	except getopt.GetoptError:
 		print ("The given argv incorrect")
 
 	enableVerbose = False
-	inputChatFile = ""
-	inputMemberFile = ""
-	inputStatusFile = ""
-	inputFriendshipFile = ""
-	outputGPickleFile = ""
-	outputGSeriesPickleFile = ""
+	inputChatFile = None
+	importMember = False
+	inputMemberFile = None
+	importStatus = False
+	inputStatusFile = None
+	inputFriendshipFile = None
+	outputGPickleFile = None
+	outputGSeriesPickleFile = None
 	asDirected = True
 	asSimple = True
 	isMerged = False
 	shiftSapnList = list()
+	movingStep = 1
+	enableCompact = True
+	temporalSizeLimitation = 3000000
 
 	def usage():
 		print ("turn the logs into graphs (format: pickle)")
 		print ("-h, --help: print this usage")
-		print ("-i ...: input path")
+		print ("-i ...: input path (format: timestamp(%Y%m%d) sid rid w1 w2")
 		print ("-m ...: membership path")
 		print ("-f ...: friendship path")
 		print ("-S ...: status path")
-		print ("-o ...: output path (underlay graph)")
-		print ("-s ...: output path (list of temporal series graphs)")
+		print ("-o ...: output path for underlay graph")
+		print ("-s ...: output path for list of temporal series graphs")
+		print ("-x : disable compact save format for list of temporal series graphs")
+		print ("-N : the size of compact temporal sereis graphs, 3000000 (edges) by default")
 		print ("-u : read as undirected")
 		print ("-d 7,14,1000: length of lifespan in days. handle multiple inputs seprated by ,")
 		print ("-v: enable verbose")
+		print ("-w: moving step width, 1 day by default")
 
 	for opt, arg in opts:
 		if opt in ("-h", "--help"):
@@ -240,20 +278,26 @@ def main(argv):
 			inputChatFile = arg
 		elif opt in ("-m"):
 			inputMemberFile = arg
+		elif opt in ("-S"):
+			inputStatusFile = arg
 		elif opt in ("-f"):
 			inputFriendshipFile = arg
 		elif opt in ("-o"):
 			outputGPickleFile = arg
 		elif opt in ("-s"):
 			outputGSeriesPickleFile = arg
+		elif opt in ("-x"):
+			enableCompact = False
+		elif opt in ("-N"):
+			temporalSizeLimitation = int(arg)
 		elif opt in ("-u"):
 			asDirected = False
-		elif opt in ("-S"):
-			inputStatusFile = arg
 		elif opt in ("-M"):
 			isMerged = True
 		elif opt in ("-d"):
 			shiftSapnList = [int(ss) for ss in arg.split(',')]
+		elif opt in ("-w"):
+			movingStep = int(arg)
 		elif opt in ("-v"):
 			enableVerbose = True
 
@@ -261,26 +305,31 @@ def main(argv):
 		print ("inputChatFile: %s" % inputChatFile)
 		print ("inputMemberFile: %s" % inputMemberFile)
 		print ("inputFriendshipFile: %s" % inputMemberFile)
-	timeTotalStart = time.time()
 
+	timeTotalStart = time.time()
 	timeLoadStart = time.time()
+
 	# readFile: node-list, edge-list
 	eDict, tDict = _fileToEdgeAttributes(read_path = inputChatFile, as_directed = asDirected, enable_verbose = enableVerbose)
+
 	# readFile: status
 	aDict, gDict, rDict = None, None, None
-	if os.path.exists(inputStatusFile):
+	if inputStatusFile is not None and os.path.exists(inputStatusFile):
+		importStatus = True
+		if enableVerbose: print ('\t\tadditional status node attributes are added')
 		aDict, gDict, rDict = fileToStatus(read_path = inputStatusFile, enable_verbose = enableVerbose)
+
 	# readFile: membership
 	mDict = None
-	if os.path.exists(inputMemberFile):
-		if enableVerbose:
-			print ('\t\tadditional membership node attributes are added')
+	if inputMemberFile is not None and os.path.exists(inputMemberFile):
+		importMember = True
+		if enableVerbose: print ('\t\tadditional membership node attributes are added')
 		mDict = fileToMembership(read_path = inputMemberFile, enable_verbose = enableVerbose)
+
 	# readFile: friendship
 	fList = None
-	if os.path.exists(inputFriendshipFile):
-		if enableVerbose:
-			print ('\t\tadditional friendship edge attributes are added')
+	if inputFriendshipFile is not None and os.path.exists(inputFriendshipFile):
+		if enableVerbose: print ('\t\tadditional friendship edge attributes are added')
 		fList = _fileToFriendship(read_path = inputFriendshipFile, enable_verbose = enableVerbose)
 	else:
 		print ("\t%s does not exist" % inputFriendshipFile)
@@ -314,85 +363,108 @@ def main(argv):
 		inducedFList = filter(lambda x: set(x).issubset(nodeSet), fList)
 		inducedFList = list(set(inducedFList))
 		timeFilterEnd = time.time()
-		#print ("\t\t[FilterTime] %.2f sec" % (timeFilterEnd - timeFilterStart))
 
 		timeAddingStart = time.time()
-		#G.add_edges_from(map(lambda x: (x[0], x[1], {'friend': 1}), inducedFList))
 		G.add_weighted_edges_from(map(lambda x: _itemToWeight(x), zip(inducedFList, [1] * len(inducedFList))), weight = 'friend')
 		timeAddingEnd = time.time()
-		#print ("\t\t[AddingEdgesTime] %.2f sec" % (timeAddingEnd - timeAddingStart))
 		del inducedFList
 	del fList
 	timeBuildEnd = time.time()
 	print ("\t[BuildTime] %.2f sec" % (timeBuildEnd - timeBuildStart))
 
-	# saveFile directory
-	gSaveDir = os.path.dirname(outputGPickleFile)
-	if len(gSaveDir) and not os.path.exists(gSaveDir):
-		os.makedirs(gSaveDir)
-	gSeriesSaveDir = os.path.dirname(outputGSeriesPickleFile)
-	if len(gSeriesSaveDir) and not os.path.exists(gSeriesSaveDir):
-		os.makedirs(gSeriesSaveDir)
+	# saveFile [ Underlay Graph ] =============
+	if outputGPickleFile is not None:
+		gSaveDir = os.path.dirname(outputGPickleFile)
+		if len(gSaveDir) and not os.path.exists(gSaveDir):
+			os.makedirs(gSaveDir)
 
-	# saveFile [ Underlay Graph ]
-	timeSaveStart = time.time()
-	nx.write_gpickle(G, outputGPickleFile)
-	timeSaveEnd = time.time()
-	print ("\t[SaveTime] %.2f sec" % (timeSaveEnd - timeSaveStart))
-	print ("\t[FileSaved] graph is saved")
+		timeSaveStart = time.time()
+		nx.write_gpickle(G, outputGPickleFile)
+		timeSaveEnd = time.time()
+		print ("\t[SaveTime] %.2f sec" % (timeSaveEnd - timeSaveStart))
+		print ("\t[FileSaved] graph is saved")
 
-	# saveSeriesFile [spanlife]
-	temporalSizeLimitation = 3000000
-	for shiftSpan in shiftSapnList:
-		print ("\t[Process-%d-Series]" % shiftSpan)
-		timeShiftStart = time.time()
-		partIndex = 1
-		seriesBasename = "%ddays_%s" % (shiftSpan, os.path.basename(outputGSeriesPickleFile))
-		seriesFilename = os.path.join(os.path.dirname(outputGSeriesPickleFile), seriesBasename)
-		seriesFilenameParts = list()
-		temporalGraphs = dict()
-		temporalSize = 0
-		gSeries = GraphSeries(tDict, is_directed =  asDirected, lifespan = shiftSpan, step = 1)
-		while gSeries.currentDay <= gSeries.eDay:
-			print ("\t\t[%s | %s]\r" % (gSeries.currentDay.strftime("%d/%m,%y"), gSeries.eDay.strftime("%d/%m,%y")), end = "")
-			sys.stdout.flush()
-			tG = gSeries.forward()
-			if hMDict:
-				nx.set_node_attributes(tG, 'family', {k: hMDict[k] for k in filter(lambda x: hMDict.__contains__(x), tG.nodes_iter())})
-			if hGDict:
-				nx.set_node_attributes(tG, 'gender', {k: hGDict[k] for k in filter(lambda x: hGDict.__contains__(x), tG.nodes_iter())})
-			if hRDict:
-				nx.set_node_attributes(tG, 'race', {k: hRDict[k] for k in filter(lambda x: hRDict.__contains__(x), tG.nodes_iter())})
-			temporalGraphs[gSeries.currentDay] = tG
-			temporalSize += tG.size()
-			del tG
-			if (temporalSize > temporalSizeLimitation):
-				print ("\n\t\t reach the limitation of edges (%d); so split out; part - %d" % (temporalSizeLimitation, partIndex))
-				seriesFilenamePart = "%s_part%d.cpickle" % (re.sub("\.[cCgG][pP]ickle$", "", seriesFilename), partIndex)
-				seriesFilenameParts.append(seriesFilenamePart)
-				cPickle.dump(temporalGraphs, open(seriesFilenamePart, "wb"))
-				partIndex += 1
-				del temporalGraphs
-				temporalGraphs = dict()
-				temporalSize = 0
-		if temporalGraphs:
-			if partIndex == 1:
-				cPickle.dump(temporalGraphs, open(seriesFilename, "wb"))
+	# saveSeriesFile [ Temporal Graph Series] =============
+	if outputGSeriesPickleFile is not None:
+		gSeriesSaveDir = os.path.dirname(outputGSeriesPickleFile)
+		if len(gSeriesSaveDir) and not os.path.exists(gSeriesSaveDir):
+			os.makedirs(gSeriesSaveDir)
+
+		for shiftSpan in shiftSapnList:
+			print ("\t[Process-%d-Series]" % shiftSpan)
+			timeShiftStart = time.time()
+
+			gSeries = EdgeSeries(is_directed = asDirected, lifespan = shiftSpan)
+			gSeries.update(tDict)
+			gSeries.setup()
+
+			if enableCompact:
+				seriesBasename = "%ddays_%s" % (shiftSpan, os.path.basename(outputGSeriesPickleFile))
+				seriesFilename = os.path.join(os.path.dirname(outputGSeriesPickleFile), seriesBasename)
+				seriesFilenameParts = list()
+				partIndex = 1
+
+				while gSeries.currentDay <= gSeries.eDay:
+					temporalGraphs = list()
+					temporalSize = temporalGraphs.__len__()
+					while temporalSize <= temporalSizeLimitation and gSeries.currentDay <= gSeries.eDay:
+						print ("\t\t[%s | %s]\r" % (gSeries.currentDay.strftime("%d/%m,%y"), gSeries.eDay.strftime("%d/%m,%y")), end = "")
+						sys.stdout.flush()
+						if importMember and importStatus:
+							tG = gSeries.forward(step = movingStep, enable_attachment = True, family = hMDict, gender = hGDict, race = hRDict)
+						elif importMember and not importStatus:
+							tG = gSeries.forward(step = movingStep, enable_attachment = True, family = hMDict)
+						elif not importMember and importStatus:
+							tG = gSeries.forward(step = movingStep, enable_attachment = True, gender = hGDict, race = hRDict)
+						elif not importMember and not importStatus:
+							tG = gSeries.forward(step = movingStep, enable_attachment = False)
+						temporalGraphs.append(tG)
+						temporalSize += tG.size()
+
+					if gSeries.currentDay > gSeries.eDay:
+						break
+					else:
+						print ("\n\t\t reach the limitation of edges (%d); so split out; part - %d" % (temporalSizeLimitation, partIndex))
+						seriesFilenamePart = "%s_part%d.cpickle" % (re.sub("\.[cCgG][pP]ickle$", "", seriesFilename), partIndex)
+						seriesFilenameParts.append(seriesFilenamePart)
+						cPickle.dump(temporalGraphs, open(seriesFilenamePart, "wb"))
+						partIndex += 1
+
+				if temporalGraphs:
+					if partIndex == 1:
+						cPickle.dump(temporalGraphs, open(seriesFilename, "wb"))
+					else:
+						cPickle.dump(temporalGraphs, open("%s_part%d.cpickle" % (re.sub("\.[cCgG][pP]ickle$", "", seriesFilename), partIndex), "wb"))
+
+				del temporalGraphs, gSeries, seriesFilenameParts
+
 			else:
-				cPickle.dump(temporalGraphs, open("%s_part%d.cpickle" % (re.sub("\.[cCgG][pP]ickle$", "", seriesFilename), partIndex), "wb"))
-		if isMerged and seriesFilenameParts:
-			print ("\n\t\tmerging parts...")
-			for sfile in seriesFilenameParts:
-				if os.path.exists(sfile):
-					temporalGraphs.update(cPickle.load(open(sfile, "r")))
-				else:
-					print ("\t\tfile %s does not exist\n", sfile)
-			cPickle.dump(temporalGraphs, open(seriesFilename, "wb"))
-			print ("\t\tmerge completed")
-		del temporalGraphs, gSeries, seriesFilenameParts
-		timeShiftEnd = time.time()
-		print ("\n\t[FileSaved] %dd graph series saved" % shiftSpan)
-		print ("\t[%d-day ShiftTime] %.2f sec\n" % (shiftSpan, timeShiftEnd - timeShiftStart))
+				seriesFilename = outputGSeriesPickleFile
+				seriesFilenameParts = list()
+				partIndex = movingStep
+
+				while gSeries.currentDay <= gSeries.eDay:
+					print ("\t\t[%s | %s]\r" % (gSeries.currentDay.strftime("%d/%m,%y"), gSeries.eDay.strftime("%d/%m,%y")), end = "")
+					sys.stdout.flush()
+					if importMember and importStatus:
+						tG = gSeries.forward(step = movingStep, enable_attachment = True, family = hMDict, gender = hGDict, race = hRDict)
+					elif importMember and not importStatus:
+						tG = gSeries.forward(step = movingStep, enable_attachment = True, family = hMDict)
+					elif not importMember and importStatus:
+						tG = gSeries.forward(step = movingStep, enable_attachment = True, gender = hGDict, race = hRDict)
+					elif not importMember and not importStatus:
+						tG = gSeries.forward(step = movingStep, enable_attachment = False)
+
+					seriesFilenamePart = "%s_shift%d.gpickle" % (re.sub("\.[cCgG][pP]ickle$", "", seriesFilename), partIndex)
+					seriesFilenameParts.append(seriesFilenamePart)
+					cPickle.dump(tG, open(seriesFilenamePart, "wb"))
+					partIndex += movingStep
+
+				del tG, seriesFilenameParts
+
+			timeShiftEnd = time.time()
+			print ("\n\t[FileSaved] %dd graph series saved" % shiftSpan)
+			print ("\t[%d-day ShiftTime] %.2f sec\n" % (shiftSpan, timeShiftEnd - timeShiftStart))
 
 	timeTotalEnd = time.time()
 	del mDict, aDict, gDict, rDict, eDict, tDict

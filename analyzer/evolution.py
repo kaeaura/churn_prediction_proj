@@ -38,6 +38,9 @@ def reciprocity(g, normalized = True):
 		return(r)
 
 class GraphSeriesCollection:
+	"""
+		handler for the files that contains GraphSeries 
+	"""
 	def __init__(self, realm, lifespan, is_directed):
 		"""docstring for __init__"""
 		self.realm = realm
@@ -57,8 +60,11 @@ class GraphSeriesCollection:
 	def load_file(self, infile):
 		"""docstring for load_file"""
 		return(cPickle.load(file(infile, 'r')))
-	def get_topology_dict(self, seriesDict):
-		for d, g in seriesDict.items():
+	def get_topology_dict(self, series):
+		#for d, g in series.items():
+		while len(series):
+			g = series.pop()
+			d = datetime.datetime.strptime(g.__str__(), "%Y-%m-%d")
 			self.table[d] = {'size': g.size(), 'order': g.order()}
 			g_order = self.table[d]['order']
 			self.table[d].__setitem__('degree', average(g.degree().values()))
@@ -138,18 +144,34 @@ class GraphSeriesCollection:
 				rowFields = k.strftime("%Y/%m/%d")
 				contentFields = seperator.join([str(v[arg]) if v.__contains__(arg) else "-" for arg in args])
 				F.write("%s\n" % seperator.join([rowFields, contentFields]))
-	def topickle(self, outfile, *args):
+
+	def toPickle(self, outfile, enable_update = True):
 		"""docstring for topickle"""
-		cPickle.dump(file(self.table, 'w'))
+		direction = 'd' if self.isDirected else 'u'
+		if enable_update and os.path.exists(outfile):
+			topoFeatureDict = cPickle.load(file(outfile, 'r'))
+		else:
+			topoFeatureDict = dict()
+
+		if not topoFeatureDict.__contains__(realm):
+			topoFeatureDict[realm] = dict()
+
+		if not topoFeatureDict[realm].__contains__(direction):
+			topoFeatureDict[realm][direction] = dict()
+
+		if topoFeatureDict.__contains__(realm) and topoFeatureDict[realm].__contains__(direction):
+			topoFeatureDict[realm][direction].update(self.table)
+		cPickle.dump(topoFeatureDict, open(outfile, 'wb'))
 
 def main(argv):
 	"""docstring for main"""
 	inFolder = None
-	inFolder = "../../distillation/act_collections/graphs/temporal"
+	inFolder = "../../distillation/act_collections/graphs/temporal" #by default
 	outfile = None
 	realm = None
 	isDirected = True
 	lifespan = None
+	enableVerbose = False
 
 	def usage():
 		"""docstring for usage"""
@@ -186,16 +208,21 @@ def main(argv):
 			lifespan = int(arg)
 		elif opt in ("-o"):
 			outfile = arg
+		elif opt in ("-v"):
+			enableVerbose = True
 		else:
 			assert False, "unhandle option"
+
 	assert(type(realm) is str and type(lifespan) is int and os.path.exists(inFolder))
 	t = GraphSeriesCollection(realm, lifespan, isDirected)
 	infiles = t.scan_file(inFolder)
-	print (infiles)
+
 	while len(infiles):
 		readFile = os.path.join(inFolder, infiles.pop())
 		print (readFile)
-		t.load_file(readFile)
+		graphSeriesDict = t.load_file(readFile)
+		t.get_topology_dict(graphSeriesDict)
+		del(graphSeriesDict)
 
 	if isDirected:
 		t.tofile(outfile, 'order', 'size', 'gender_order', 'f_gender_order', 'degree', 'rep', 'rei', 'asr', 'asr_gender', 'asr_race', 'scc_order', 'scc_size', 'wcc_order', 'wcc_size', 'f_order', 'f_size', 'f_degree', 'f_rep', 'f_rei', 'f_asr', 'f_asr_gender', 'f_asr_race')
