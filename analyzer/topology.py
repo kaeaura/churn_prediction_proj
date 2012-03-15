@@ -105,10 +105,19 @@ def powerlaw_fit(xdata, ydata, err = 0.1):
 
 	return(amp, index, indexErr)
 
-def get_degree_distribution(g):
+def get_degree_distribution(g, mode = 'both'):
 	""" return 2-tuple of array (degree k, degree probability P(k))"""
+	if mode == 'both':
+		dg = g.degree().values()
+	elif mode == 'in':
+		dg = g.in_degree().values()
+	elif mode == 'out':
+		dg = g.out_degree().values()
+	else:
+		return(0)
+
 	c = Counter()
-	for d in g.degree().itervalues():
+	for d in iter(dg):
 		c[d] += 1
 	d = dict(c)
 	if d.__contains__(0):
@@ -155,10 +164,13 @@ def get_degree_correlation(g):
 	ydata = array(ydata)
 	return(xdata, ydata)
 
-def pack(graph, meta = None):
+def pack(graph, **kwargs):
 	"""docstring for to_pack"""
 	t = dict()
-	t.__setitem__('meta', meta)
+	# add meta labels
+	for k in kwargs:
+		t.__setitem__(k, kwargs[k])
+	# resolve the features
 	t.__setitem__('order', graph.order())
 	t.__setitem__('size', graph.size())
 	t.__setitem__('degree', average_degree(graph))
@@ -167,6 +179,14 @@ def pack(graph, meta = None):
 	t.__setitem__('degDistr_x', xdata)
 	t.__setitem__('degDistr_y', ydata)
 	t.__setitem__('degDistr_fit', powerlaw_fit(xdata, ydata))
+	xdata, ydata = get_degree_distribution(graph, mode = 'in')
+	t.__setitem__('inDegDistr_x', xdata)
+	t.__setitem__('inDegDistr_y', ydata)
+	t.__setitem__('inDegDistr_fit', powerlaw_fit(xdata, ydata))
+	xdata, ydata = get_degree_distribution(graph, mode = 'out')
+	t.__setitem__('outDegDistr_x', xdata)
+	t.__setitem__('outDegDistr_y', ydata)
+	t.__setitem__('outDegDistr_fit', powerlaw_fit(xdata, ydata))
 	xdata, ydata = get_degree_correlation(graph)
 	t.__setitem__('knnDistr_x', xdata)
 	t.__setitem__('knnDistr_y', ydata)
@@ -184,7 +204,6 @@ def pack(graph, meta = None):
 		t.__setitem__('ccDistr_y', ydata)
 		t.__setitem__('ccDistr_fit', powerlaw_fit(xdata, ydata))
 	return(t)
-	# end of modification
 		
 class DiNet(nx.DiGraph):
 	def __init__(self, graph, name = 'envolop'):
@@ -269,7 +288,7 @@ def main(argv):
 	heteNameSep = ","
 	enablePlot = False
 	show_fit = False
-	graphCategory = None
+	metalabels = dict()
 	forceSave = False
 	asDirected = False
 	enable_appendant = True
@@ -322,7 +341,8 @@ def main(argv):
 		elif opt in ("-N"):
 			heteNames = arg.split(heteNameSep)
 		elif opt in ("-c"):
-			graphCategory = arg
+			k, v = arg.split("=")
+			metalabels.__setitem__(k, v)
 		elif opt in ("-f"):
 			forceSave = True
 		elif opt in ("-d"):
@@ -344,9 +364,12 @@ def main(argv):
 		inputFile.extend([os.path.join(inputDir, f) for f in filelist])
 		print inputFile
 		
-	outputDir = os.path.dirname(outputFile)
-	if outputDir and not (os.path.exists(outputDir)):
-		os.makedirs(outputDir)
+	if outputFile is not None:
+		outputDir = os.path.dirname(outputFile)
+		if outputDir and not (os.path.exists(outputDir)):
+			os.makedirs(outputDir)
+	else:
+		print ("There is no output")
 
 	db = LiteDB()
 	if os.path.exists(outputFile) and enable_appendant:
@@ -379,7 +402,7 @@ def main(argv):
 				print ("skip")
 				next
 			else:
-				db.__setitem__(graph_key, pack(graph, graphCategory))
+				db.__setitem__(graph_key, pack(graph, **metalabels))
 			
 	db.save(outputFile)
 

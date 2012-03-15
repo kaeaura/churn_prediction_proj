@@ -8,34 +8,41 @@ df = read.csv(f, header = T, as.is = T)
 df$realm = sapply (strsplit(df$dataset, "_"), function(x) x[1])
 df$width = sapply (strsplit(df$dataset, "_"), function(x) sub("shift", "", x[3]))
 df$degcor = as.numeric(sapply (strsplit(df$degcor, "/"), function(x) x[1]))
-df$powerIndex = as.numeric(sapply (strsplit(df$degDistr_fit, "/"), function(x) x[2]))
+df$power.index = as.numeric(sapply (strsplit(df$degDistr_fit, "/"), function(x) x[2]))
 ddf = subset(df, meta == 'mmo' | meta == 'msg' | meta == 'cit' & width != 'd')
 
 # --
 # directed graphs
 # users contact others more easily in MMO
 g = ggplot(data = subset(df, order >= 1000), aes(x = order, y = size, label = meta))
-g + geom_point(aes(color = meta)) + scale_x_log10() + scale_y_log10()
+g + geom_point(aes(color = meta, shape = meta)) + scale_x_log10() + scale_y_log10()
 ggsave(file.path(figDir, 'density_global.pdf'))
-g = ggplot(data = subset(ddf, realm != 'alice'), aes(x = order, y = size, label = width, color = meta))
-g + geom_point() + geom_text(size = 1.5, hjust = 1, vjust = 1) + stat_smooth(method = 'lm', se = T, formula = y ~ x, fullrange = T) + scale_x_log10() + scale_y_log10()
-ggsave(file.path(figDir, 'density_growth.pdf'))
+g = ggplot(data = ddf, aes(x = order, y = size, label = width, color = meta))
+g + geom_point() + geom_text(size = 1.5, hjust = 0, vjust = 0, color = 'black') + stat_smooth(method = 'lm', se = T, formula = y ~ x) + scale_x_log10() + scale_y_log10() 
+ggsave(file.path(figDir, 'density_tmp.pdf'))
+g = ggplot(data = subset(ddf, meta == 'mmo'), aes(x = order, y = size, label = width, color = realm))
+g + geom_point() + geom_text(size = 1.5, hjust = 0, vjust = 0, color = 'black') + stat_smooth(method = 'lm', se = T, formula = y ~ x) + scale_x_log10() + scale_y_log10() 
+ggsave(file.path(figDir, 'density_mmo.pdf'))
+
 
 # reciprocity
 g = ggplot(data = df, aes(x = size, y = recp, label = meta, shape = meta))
-g + geom_point(aes(color = meta)) + geom_text(hjust = 1, vjust = 1, angle = 45, size = 1.5)
+g + geom_point(aes(color = meta)) #+ geom_text(hjust = 1, vjust = 1, angle = 45, size = 1.5)
 ggsave(file.path(figDir, 'reciprocity_global.pdf'))
+g = ggplot(data = subset(ddf, meta == 'mmo'), aes(x = size, y = recp, label = width))
+g + geom_line(aes(color = realm)) + geom_point(aes(color = realm))
+ggsave(file.path(figDir, 'reciprocity_mmo.pdf'))
 g = ggplot(data = ddf, aes(x = size, y = recp, label = width, shape = meta))
-g + geom_point(aes(color = realm)) + geom_text(hjust = 1, vjust = 1, angle = 45, size = 1.5)
-ggsave(file.path(figDir, 'reciprocity_growth.pdf'))
+g + geom_point(aes(color = realm)) + geom_line(aes(color = realm)) + scale_x_log10()
+ggsave(file.path(figDir, 'reciprocity_tmp.pdf'))
 
 # degcor
-g = ggplot(data = df, aes(x = size / order, y = degcor, label = meta, shape = meta))
-g + geom_point(aes(color = meta)) + geom_text(hjust = 1, vjust = 1, angle = 45, size = 1.5)
+g = ggplot(data = df, aes(x = size, y = degcor, label = meta, shape = meta))
+g + geom_point(aes(color = meta)) + geom_text(hjust = 1, vjust = 1, angle = 45, size = 1.5) + scale_x_log10()
 ggsave(file.path(figDir, 'degreeCor_global.pdf'))
 g = ggplot(data = ddf, aes(x = size, y = degcor, label = width, shape = meta))
-g + geom_point(aes(color = realm)) + geom_text(hjust = 1, vjust = 1, angle = 45, size = 1.5)
-ggsave(file.path(figDir, 'degreeCor_growth.pdf'))
+g + geom_point(aes(color = realm)) + geom_text(hjust = 1, vjust = 1, angle = 45, size = 1.5) + scale_x_log10()
+ggsave(file.path(figDir, 'degreeCor_tmp.pdf'))
 
 # assortativity
 g = ggplot(data = df, aes(x = size, y = asr, label = meta, shape = meta))
@@ -43,19 +50,15 @@ g + geom_point(aes(color = meta)) + geom_text(hjust = 1, vjust = 1, angle = 45, 
 ggsave(file.path(figDir, 'assortativity_global.pdf'))
 g = ggplot(data = ddf, aes(x = size, y = asr, label = width, shape = meta))
 g + geom_point(aes(color = realm)) + geom_text(hjust = 1, vjust = 1, angle = 45, size = 1.5)
-ggsave(file.path(figDir, 'assortativity_growth.pdf'))
+ggsave(file.path(figDir, 'assortativity_tmp.pdf'))
 
-# powerIndex
-g = ggplot(data = df, aes(x = size, y = powerIndex, label = meta, shape = meta))
-g + geom_point(aes(color = meta)) + geom_text(hjust = 1, vjust = 1, angle = 45, size = 1.5)
-ggsave(file.path(figDir, 'powerIndex_global.pdf'))
-g = ggplot(data = ddf, aes(x = size, y = powerIndex, color = meta, label = width, shape = meta))
-g + geom_point() + geom_text(hjust = 1, vjust = 1, angle = 45, size = 1.5) + stat_smooth(method = 'lm', se = T, formula = y ~ log(x))
-ggsave(file.path(figDir, 'powerIndex_growth.pdf'))
-g = ggplot(data = subset(ddf, realm == 'anderson' | realm == 'plurk'), aes(x = size, y = powerIndex, color = meta, label = width, shape = meta))
-g + geom_point() + geom_text(hjust = 1, vjust = 1, angle = 45, size = 1.5) + stat_smooth(method = 'lm', se = T, formula = y ~ log(x))
-ggsave(file.path(figDir, 'powerIndex_growth.pdf'))
-
+# power.index
+g = ggplot(data = df, aes(x = size, y = power.index, label = meta, shape = meta))
+g + geom_point(aes(color = meta)) + scale_x_log10()
+ggsave(file.path(figDir, 'power.index_global.pdf'))
+g = ggplot(data = subset(ddf, realm == 'cit-HepTh' | realm == 'anderson' | realm == 'plurk'), aes(x = size / order, y = power.index, color = meta, label = width, shape = meta))
+g + geom_point() + geom_text(hjust = 0, vjust = 0, size = 1.5, color = 'black') + stat_smooth(method = 'lm', se = T, formula = y ~ x) + scale_x_log10()
+ggsave(file.path(figDir, 'power.index_tmp.pdf'))
 
 # ------------------------------------------
 # undirected
@@ -86,27 +89,26 @@ ggsave(file = 'density_scatter_global_multiLM.pdf', density_scatter_global)
 ## power-law index
 # (boxplot view)
 g = ggplot(data = df, aes(factor(paste(meta, type)), degDistr_fit))
-powerIndex_box_global = g + geom_boxplot(aes(fill = factor(paste(meta, type))))
-ggsave(file = 'powerIndex_box_global.pdf', powerIndex_box_global)
+power.index_box_global = g + geom_boxplot(aes(fill = factor(paste(meta, type))))
+ggsave(file = 'power.index_box_global.pdf', power.index_box_global)
 
 # vs order (scatter view)
 g = ggplot(data = subset(df, type == 'envolop'), aes(x = order, y = degDistr_fit, label = dataset))
-powerIndex_Order_scatter_global = g + geom_point(aes(color = factor(meta)), size = 6) + geom_text(vjust = 0, hjust = 0, angle = 40, size = 3) + scale_x_log10() + ylab('power index') + xlab('order')
-ggsave(file = 'powerIndex_Order_scatter_global.pdf', powerIndex_Order_scatter_global)
+power.index_Order_scatter_global = g + geom_point(aes(color = factor(meta)), size = 6) + geom_text(vjust = 0, hjust = 0, angle = 40, size = 3) + scale_x_log10() + ylab('power index') + xlab('order')
+ggsave(file = 'power.index_Order_scatter_global.pdf', power.index_Order_scatter_global)
 
 # vs size (scatter view)
 g = ggplot(data = subset(df, type == 'envolop'), aes(x = size, y = degDistr_fit, label = dataset))
-powerIndex_Size_scatter_global = g + geom_point(aes(color = factor(meta)), size = 6) + geom_text(vjust = 0, hjust = 0, angle = 40, size = 3) + scale_x_log10() + ylab('power index') + xlab('size')
-ggsave(file = 'powerIndex_Size_scatter_global.pdf', powerIndex_Size_scatter_global)
+power.index_Size_scatter_global = g + geom_point(aes(color = factor(meta)), size = 6) + geom_text(vjust = 0, hjust = 0, angle = 40, size = 3) + scale_x_log10() + ylab('power index') + xlab('size')
+ggsave(file = 'power.index_Size_scatter_global.pdf', power.index_Size_scatter_global)
 
 ## vs density (scatter view)
 g = ggplot(data = subset(df, type == 'envolop'), aes(x = size / (order ** 2), y = degDistr_fit, label = dataset))
-powerIndex_Density_scatter_global = g + geom_point(aes(color = factor(meta)), size = 6) + geom_text(vjust = 0, hjust = 0, angle = 40, size = 3) + scale_x_log10() + ylab('power index') + xlab('density')
-ggsave(file = 'powerIndex_Density_scatter_global.pdf', powerIndex_Density_scatter_global)
+power.index_Density_scatter_global = g + geom_point(aes(color = factor(meta)), size = 6) + geom_text(vjust = 0, hjust = 0, angle = 40, size = 3) + scale_x_log10() + ylab('power index') + xlab('density')
+ggsave(file = 'power.index_Density_scatter_global.pdf', power.index_Density_scatter_global)
 
 
 ## asr
-
 g = ggplot(data = sdf, aes(x = size, y = asr, label = dataset))
 assort_Size_scatter_global = g + geom_point(aes(color = paste(meta, type), shape = factor(type)), size = 6) + geom_text(vjst = 0, hjust = 0, size = 2) + scale_x_log10() + ylab('assortativity') + xlab('size')
 ggsave(file = 'assort_Size_scatter_global.pdf', assort_Size_scatter_global)
