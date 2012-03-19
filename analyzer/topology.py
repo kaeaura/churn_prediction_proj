@@ -179,14 +179,6 @@ def pack(graph, **kwargs):
 	t.__setitem__('degDistr_x', xdata)
 	t.__setitem__('degDistr_y', ydata)
 	t.__setitem__('degDistr_fit', powerlaw_fit(xdata, ydata))
-	xdata, ydata = get_degree_distribution(graph, mode = 'in')
-	t.__setitem__('inDegDistr_x', xdata)
-	t.__setitem__('inDegDistr_y', ydata)
-	t.__setitem__('inDegDistr_fit', powerlaw_fit(xdata, ydata))
-	xdata, ydata = get_degree_distribution(graph, mode = 'out')
-	t.__setitem__('outDegDistr_x', xdata)
-	t.__setitem__('outDegDistr_y', ydata)
-	t.__setitem__('outDegDistr_fit', powerlaw_fit(xdata, ydata))
 	xdata, ydata = get_degree_correlation(graph)
 	t.__setitem__('knnDistr_x', xdata)
 	t.__setitem__('knnDistr_y', ydata)
@@ -195,7 +187,14 @@ def pack(graph, **kwargs):
 		t.__setitem__('recp', reciprocity(graph))
 		t.__setitem__('reinf', reinforce(graph))
 		t.__setitem__('degcor', degcor(graph))
-
+		xdata, ydata = get_degree_distribution(graph, mode = 'in')
+		t.__setitem__('inDegDistr_x', xdata)
+		t.__setitem__('inDegDistr_y', ydata)
+		t.__setitem__('inDegDistr_fit', powerlaw_fit(xdata, ydata))
+		xdata, ydata = get_degree_distribution(graph, mode = 'out')
+		t.__setitem__('outDegDistr_x', xdata)
+		t.__setitem__('outDegDistr_y', ydata)
+		t.__setitem__('outDegDistr_fit', powerlaw_fit(xdata, ydata))
 	else:
 		t.__setitem__('cc', nx.average_clustering(graph))
 		t.__setitem__('norm_cc', norm_cc(graph))
@@ -291,7 +290,7 @@ def main(argv):
 	metalabels = dict()
 	forceSave = False
 	asDirected = False
-	enable_appendant = True
+	enable_appendant = False
 	ofs = ","
 
 	def usage():
@@ -309,11 +308,12 @@ def main(argv):
 		print ("\t-M: Is Hete. data")
 		print ("\t-N: Hete. names")
 		print ("\t-c: meta data for graph")
+		print ("\t-a: append previous result")
 		print ("\t-f: force save")
 		print ("\t-d: as directed (only valid while reading edgelist)")
 
 	try:
-		opts, args = getopt.getopt(argv, "hi:I:eo:r:vMN:c:fd", ["help"])
+		opts, args = getopt.getopt(argv, "hi:I:eo:r:vMN:c:afd", ["help"])
 	except getopt.GetoptError, err:
 		print ("The given argv incorrect")
 		usage()
@@ -343,6 +343,8 @@ def main(argv):
 		elif opt in ("-c"):
 			k, v = arg.split("=")
 			metalabels.__setitem__(k, v)
+		elif opt in ("-a"):
+			enable_appendant = True
 		elif opt in ("-f"):
 			forceSave = True
 		elif opt in ("-d"):
@@ -376,7 +378,7 @@ def main(argv):
 		db.load(outputFile)
 	
 	for f in inputFile: 
-		print (f)
+		print ("processing %s" % f)
 		if not os.path.exists(f): next
 
 		if inputIsPickle:
@@ -387,11 +389,12 @@ def main(argv):
 			else:
 				g = nx.read_edgelist(f, nodetype = int, create_using = nx.Graph())
 
-		net = DiNet(g) if g.is_directed() else Net(g)
 		graphs = list()
-		graphs.append(net)
 		if IsHete:
+			net = DiNet(g) if g.is_directed() else Net(g)
 			graphs.extend(net.extract_multiple_edges(*heteNames))
+		else:
+			graphs.append(g)
 
 		for graph in iter(graphs):
 			autoName = re.sub(".gpickle", "", os.path.basename(f)) if inputIsPickle else re.sub(".txt", "", os.path.basename(f))

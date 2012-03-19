@@ -6,9 +6,9 @@ import re
 import sys
 import getopt
 import cPickle
+import itertools
 
 __author__ = "Jing-Kai Lou (kaeaura@gmail.com)"
-
 
 class LiteDB(dict):
 	def load(self, path, structUpdate = False):
@@ -51,11 +51,13 @@ class LiteDB(dict):
 
 def main(argv):
 	"""manipulation db via os"""
-	inputFile = None
-	inputDir = None
+	inputFiles = list()
+	inputDirs = list()
 	outputFile = None
 	asList = False
-	showKeys = False
+	enable_listKeys = False
+	shownKeys = list()
+	shownAttributes = list()
 	argList = list()
 	
 	def usage():
@@ -67,12 +69,14 @@ def main(argv):
 		print ("\t-i: load inputfile")
 		print ("\t-I: load inputFolder")
 		print ("\t-o: merge the inputfiles and save them to another db")
-		print ("\t-s: show the valid attributes")
+		print ("\t-l: list the valid attributes for all data")
+		print ("\t-s: specific an key (data name)")
+		print ("\t-S: specific an attribute, and show these attributes of specific keys")
 		print ("\t-w: merge the inputfiles and make them as csv files")
 		print ("\t-a: the column names for the csv files (only valid with -w arg)")
 
 	try:
-		opts, args = getopt.getopt(argv, "hi:I:o:wa:s", ["help"])
+		opts, args = getopt.getopt(argv, "hi:I:o:wa:ls:S:", ["help"])
 	except getopt.GetoptError, err:
 		print ("The given argv incorrect")
 		usage()
@@ -84,35 +88,55 @@ def main(argv):
 			usage()
 			sys.exit()
 		elif opt in ("-i"):
-			inputFile = arg
+			inputFiles.append(arg)
 		elif opt in ("-I"):
-			inputDir = arg
+			inputDirs.append(arg)
 		elif opt in ("-o"):
 			outputFile = arg
+		elif opt in ("-l"):
+			enable_listKeys = True
 		elif opt in ("-s"):
-			showKeys = True
+			shownKeys.append(arg)
+		elif opt in ("-S"):
+			shownAttributes.append(arg)
 		elif opt in ("-w"):
 			asList = True
 		elif opt in ("-a"):
 			argList.append(arg)
 
 	db = LiteDB()
-	if inputFile is not None and os.path.exists(inputFile):
-		db.load(inputFile)
-	
-	if inputDir is not None and os.path.exists(inputDir):
-		pattern = re.compile(r".*\.db$")
-		filelist = filter(lambda x: pattern.match(x) is not None, os.listdir(inputDir))
-		for f in filelist:
-			print (f)
-			db.load(os.path.join(inputDir, f))
 
-	if showKeys:
+	pattern = re.compile(r".*\.db$")
+	if len(inputDirs):
+		for inputDir in inputDirs:
+			filelist = filter(lambda x: pattern.match(x) is not None, os.listdir(inputDir))
+			inputFiles.extent(map(lambda x: os.path.join(inputDir, x), filelist))
+	
+	for inputFile in itertools.ifilter(lambda x: os.path.exists(x), inputFiles):
+		db.load(inputFile)
+
+	if enable_listKeys:
 		print ("keys ----")
 		print ("\n".join(db.keys()))
 		print 
 		print ("attribute keys ---")
 		print (" ".join(list(db.showkeys())))
+		print 
+
+	if len(shownKeys): 
+		shownKeys = list(set(shownKeys).intersection(set(db.keys())))
+	else:
+		shownKeys = db.keys()
+	if len(shownAttributes): 
+		shownAttributes = list(set(shownAttributes).intersection(set(db.showkeys())))
+		
+	if len(shownAttributes):
+		for showKey in shownAttributes:
+			print ("----[specific key: %s]----" % showKey)
+			for k in db.iterkeys():
+				print ("[ %s ]" % k)
+				print (db[k][showKey])
+				print 
 
 	if outputFile is not None:
 		if asList:
