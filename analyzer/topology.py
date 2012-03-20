@@ -40,10 +40,23 @@ def strength_centrality(G, weight, k = None, mode = 'out'):
 	return(n_weight_dict)
 
 def average_degree(g):
-	"""docstring for average_degree"""
 	if g.order():
-		d = g.degree()
-		return(float(sum(d.values())) / g.order())
+		d = g.degree().values()
+		return(float(sum(d)) / g.order())
+	else:
+		return(0)
+
+def average_in_degree(g):
+	if g.order():
+		d = g.in_degree().values()
+		return(float(sum(d)) / g.order())
+	else:
+		return(0)
+
+def average_out_degree(g):
+	if g.order():
+		d = g.out_degree().values()
+		return(float(sum(d)) / g.order())
 	else:
 		return(0)
 
@@ -52,7 +65,7 @@ def degcor(g):
 	assert(g.is_directed())
 	from scipy.stats import pearsonr
 	x, y = list(), list()
-	for n in g.nodes():
+	for n in g.nodes_iter():
 		x.append(g.out_degree(n))
 		y.append(g.in_degree(n))
 	return(pearsonr(x, y))
@@ -63,7 +76,7 @@ def norm_cc(g):
 	rc = float(g.size() * 2) / (g.order() * (g.order() - 1))
 	return(c / rc if rc > 0 else 0)
 
-def reinforce(g, weight = 'weight', isSet = False):
+def reinforce(g, weight = 'weight'):
 	w = nx.get_edge_attributes(g, weight)
 	if len(w):
 		return(filter(lambda x: x.__len__() > 1 if hasattr(x, '__iter__') else x > 1, w.values()).__len__() / float(w.__len__()))
@@ -71,20 +84,45 @@ def reinforce(g, weight = 'weight', isSet = False):
 		return(0)
 
 def reciprocity(g, normalized = True):
-	"""docstring for reciprocity"""
+	"""
+		Get the reciprocity for the directed graphs. If normalized is given as False, 
+		then it provides a traditional way of quantifying reciprocity r as the ratio of 
+		the number of links pointing in both directions L_r to the total number of links L.
+
+		Reciprocity r must be compared with the value r_rand expected in a random graph with 
+		exactly same size and order, or it has only a relative meaning and does not carry complete
+		information by itself. In order to avoid the aforementioned problems, we propose 
+		a new definition of reciprocity rho as the correlation between the entries 
+		of the adjacency matrix of a directed graph.
+
+		Parameters: 
+		-----------
+			g: networkX DiGraph
+			normalized: bool, optional, (default = True)
+				If true, return the normalized reciprocity rho (correlation) 
+		Return:
+			reciprocity: float
+		References:
+		-----------
+		[1] D. Garlaschelli and M. I. Loffredo, 
+		'Patterns of link reciprocity in directed networks,' 
+		arXiv.org, vol. cond-mat.dis-nn. 22-Apr.-2004.
+	"""
 	assert(g.is_directed())
-	L = set(g.edges()).difference(set(g.selfloop_edges()))
-	Lb = set()
-	for e in L:
-		Lb.add(frozenset(e))
+	# first, remove the self loops and duplicated edges
+	# in matrix aspect, remove the diagonal elements and make the element are no greater than 1
 	n = g.order()
-	r = 2 * (len(L) - float(len(Lb))) / len(L)
+	L = set(g.edges()).difference(set(g.selfloop_edges()))
+	# sort the directional edges as undirectional edges
+	L_unorder = map(lambda x: '-'.join(map(str, list(set(x)))), L)
+	L_cnt = Counter()
+	for l in iter(L_unorder):
+		L_cnt[l] += 1
+	L_r = filter(lambda x: L_cnt[x] > 1, L_cnt.iterkeys())
+	r = float(len(L_r)) / len(L_unorder)
 	a = float(len(L)) / (n * (n - 1))
-	rho = ((r - a) / (1 - a)) if len(Lb) else (-a / (1 - a))
-	if normalized:
-		return(rho)
-	else:
-		return(r)
+	rho = ((r - a) / (1 - a))
+	return(rho if normalized else r)
 
 def powerlaw_fit(xdata, ydata, err = 0.1):
 	yerr = err * ydata
