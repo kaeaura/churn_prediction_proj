@@ -9,9 +9,10 @@ import getopt
 import networkx as nx
 import cPickle
 from db import LiteDB
-from scipy import average, array, log10, sqrt
+from scipy import average, median, array, log10, sqrt
 from scipy.optimize import leastsq
 from collections import Counter, defaultdict
+from itertools import ifilter
 
 __author__ = "Jing-Kai Lou (kaeaura@gmail.com)"
 
@@ -61,7 +62,17 @@ def average_out_degree(g):
 		return(0)
 
 def degcor(g):
-	"""docstring for degcor"""
+	"""
+		Calculating the pearson correlation between in-degree and out-degree of nodes
+		in the given Graph g.
+
+		Parameters:
+		-----------
+			g: NetworkX DiGraph
+		Returns:
+		-------
+		degree correlation, float
+	"""
 	assert(g.is_directed())
 	from scipy.stats import pearsonr
 	x, y = list(), list()
@@ -70,12 +81,70 @@ def degcor(g):
 		y.append(g.in_degree(n))
 	return(pearsonr(x, y))
 
-def norm_cc(g):
-	"""docstring for norm_cc"""
+def to_undirected(g):
+	"""
+		Remove the selfloops and make it as undirected for a given graph.
+
+		Parameters:
+		-----------
+			g: NetworkX Graph, NetworkX DiGraph
+		Returns:
+		-------
+			NetworkXGraph
+	"""
+	g.remove_edges_from(g.selfloop_edges())
+	return(nx.Graph(g))
+	
+def mean_clustering(g, normalized = False):
+	"""
+		Calculating the clustering coefficient for a graph. If given graph is directed, 
+		the graph is converted to undirected automatically that means any arc will be an edge.
+
+		Parameters:
+		-----------
+			g: NetworkX Graph, NetworkX DiGraph
+			normalized: bool, optional, (default = False)
+		Returns:
+		-------
+			float, (normalized) clustering coefficient
+	"""
+	# first, remove the self edges
+	g = to_undirected(g)
 	c = nx.average_clustering(g)
 	rc = float(g.size() * 2) / (g.order() * (g.order() - 1))
-	return(c / rc if rc > 0 else 0)
+	if normalized:
+		return(c / rc if rc > 0 else 0)
+	else:
+		return(c)
 
+def randomly_clustering(g, tries = 10):
+	"""
+		Comparing the average clustering coefficient of g with other graphs h
+		which share identical degree sequence. This function returns the comparison ratio.
+
+		Parameters:
+		-----------
+			g: NetworkX Graph, NetworkX DiGraph
+			tries: int, optional, (default = 10)
+				number of tries (compared graphs)
+		See also:
+		---------
+			mean_clustering
+		Returns:
+		--------
+			float, the ratio of avg clustering coefficient, avg_cc(g) / mean(avg_cc(h))
+	"""
+	from scipy import average
+	g = to_undirected(g)
+	d = g.degree().values()
+	c = mean_clustering(g, normalized = False)
+	p = list()
+	for t in xrange(tries):
+		ng = nx.configuration_model(d, create_using = nx.Graph())
+		p.append(mean_clustering(ng))
+		del ng
+	return(c / average(p))
+		
 def reinforce(g, weight = 'weight'):
 	w = nx.get_edge_attributes(g, weight)
 	if len(w):
@@ -83,24 +152,25 @@ def reinforce(g, weight = 'weight'):
 	else:
 		return(0)
 
-def reciprocity(g, normalized = True):
+def reciprocity(g, return_cor = True):
 	"""
-		Get the reciprocity for the directed graphs. If normalized is given as False, 
+		Calculate the reciprocity for a directed graphs. If return_cor is False, 
 		then it provides a traditional way of quantifying reciprocity r as the ratio of 
 		the number of links pointing in both directions L_r to the total number of links L.
 
-		Reciprocity r must be compared with the value r_rand expected in a random graph with 
-		exactly same size and order, or it has only a relative meaning and does not carry complete
-		information by itself. In order to avoid the aforementioned problems, we propose 
-		a new definition of reciprocity rho as the correlation between the entries 
-		of the adjacency matrix of a directed graph.
+		Nevertheless, reciprocity r must be compared with the value r_rand expected 
+		in a random graph with exactly same size and order, or it has only a relative meaning
+		and does not carry complete information by itself. In order to avoid the aforementioned
+		problems, this also proposes a new definition of reciprocity rho as the correlation 
+		between the entries of the adjacency matrix of a directed graph.
 
 		Parameters: 
 		-----------
-			g: networkX DiGraph
-			normalized: bool, optional, (default = True)
-				If true, return the normalized reciprocity rho (correlation) 
-		Return:
+			g: NetworkX DiGraph
+			return_cor: bool, optional, (default = True)
+				If true, return the return_cor reciprocity rho (correlation) 
+		Returns:
+		-------
 			reciprocity: float
 		References:
 		-----------
@@ -122,7 +192,7 @@ def reciprocity(g, normalized = True):
 	r = float(len(L_r)) / len(L_unorder)
 	a = float(len(L)) / (n * (n - 1))
 	rho = ((r - a) / (1 - a))
-	return(rho if normalized else r)
+	return(rho if return_cor else r)
 
 def powerlaw_fit(xdata, ydata, err = 0.1):
 	yerr = err * ydata
@@ -143,8 +213,21 @@ def powerlaw_fit(xdata, ydata, err = 0.1):
 
 	return(amp, index, indexErr)
 
-def get_degree_distribution(g, mode = 'both'):
-	""" return 2-tuple of array (degree k, degree probability P(k))"""
+def get_degree_distribution(g, mode = 'both', is_CDF = True):
+	""" 
+		The discrete degree distribution. Similar to the histogram shows the possible degrees k,
+		and ratio of nodes with degree greater than k in graph g.
+
+		Parameters:
+		-----------
+			g: NetworkX Graph
+			mode: str ('in', 'out', 'both'), (default = 'both')
+			is_CDF: bool, (default = True)
+				if True, return the ratio values as CDF, else return the ratio values as PDF
+		Returns:
+		--------
+			xdata, ydata, a 2-tuple of array, (degree k, P(k))
+	"""
 	if mode == 'both':
 		dg = g.degree().values()
 	elif mode == 'in':
@@ -165,45 +248,107 @@ def get_degree_distribution(g, mode = 'both'):
 	dKeys.sort()
 	xdata = array(dKeys)
 	ylist = list()
-	for k in xdata:
-		ylist.append(sum([d[kk] for kk in xdata[xdata >= k]]))
+	if is_CDF:
+		for k in xdata: ylist.append(sum([d[kk] for kk in xdata[xdata >= k]]))
+	else:
+		for k in xdata: ylist.append(sum([d[kk] for kk in xdata[xdata == k]]))
+
 	ydata = array(map(lambda x: float(x) / dSum, ylist))
 	return(xdata, ydata)
 
-def get_cluster_distribution(g):
-	""" return 2-tuple of array (clustering coefficient cc, clustering coefficient probability P(cc))"""
+def get_cluster_distribution(g, method = 'average'):
+	""" 
+		The clustering coefficient distribution grouped by degree. Similar to the histogram shows the possible degree k,
+		and average/median clustering coefficient of nodes with degree k in graph g.
+
+		Parameters:
+		-----------
+			g: NetworkX Graph
+			method: str, ('average', 'median'), (default = 'average')
+		Returns:
+		--------
+			xdata, ydata, a 2-tuple of array, (k, avg_cc(V_k)), where V_k are the nodes with degree k
+	"""
+	g = to_undirected(g)
 	k = nx.clustering(g)
 	d = g.degree()
 	ck = defaultdict(list)
 	for n in g.nodes_iter():
 		ck[d[n]].append(k[n])
 	xdata, ydata = list(), list()
-	for x, y in ck.iteritems():
-		if x > 1 and average(y) > 0:
+	
+	if method == 'average':
+		for x, y in ifilter(lambda x: x[0] > 1 and average(x[1]) > 0, ck.iteritems()):
 			xdata.append(x)
 			ydata.append(average(y))
+	elif method == 'median':
+		for x, y in ifilter(lambda x: x[0] > 1 and median(x[1]) > 0, ck.iteritems()):
+			xdata.append(x)
+			ydata.append(median(y))
+	else:
+		raise NameError("method should be 'average' or 'mean'")
 	xdata = array(xdata)
 	ydata = array(ydata)
 	return(xdata, ydata)
 
-def get_degree_correlation(g):
-	""" return 2-tuple of array (degree k, Knn_k) """
-	k = nx.average_neighbor_degree(g)
-	d = g.degree()
+def get_degree_correlation(g, method = 'average', mode = 'both'):
+	""" 
+		The average neighbor degree/in-degree/out-degree distribution grouped by degree. Similar to the histogram shows the possible degree k,
+		and average/median clustering coefficient of nodes with degree k in graph g.
+
+		Parameters:
+		-----------
+			g: NetworkX Graph
+			mode: str, ('in', 'out', 'both'), (default = 'both')
+			method: str, ('average', 'median'), (default = 'average')
+		Returns:
+		--------
+			xdata, ydata, a 2-tuple of array, (k, <Knn>(k)), where <Knn>(k) denotes as the average/median degree
+	"""
+	if mode == 'both':
+		d = g.degree()
+		k = nx.average_neighbor_degree(g)
+	elif mode == 'in':
+		d = g.in_degree()
+		k = nx.average_neighbor_degree(g, source = 'in', target = 'in')
+	elif mode == 'out':
+		d = g.out_degree()
+		k = nx.average_neighbor_degree(g, source = 'out', target = 'out')
+	else:
+		raise NameError("mode must be 'in', 'out', or 'both'")
 	ck = defaultdict(list)
+	#group the nodes by degree
 	for n in g.nodes_iter():
 		ck[d[n]].append(k[n])
 	xdata, ydata = list(), list()
-	for x, y in ck.iteritems():
-		if x > 0 and average(y) > 0:
+	if method == 'average':
+		for x, y in ifilter(lambda x: x[0] > 0 and average(x[1]) > 0, ck.iteritems()):
 			xdata.append(x)
 			ydata.append(average(y))
+	elif method == 'median':
+		for x, y in ifilter(lambda x: x[0] > 0 and median(x[1]) > 0, ck.iteritems()):
+			xdata.append(x)
+			ydata.append(median(y))
+	else:
+		raise NameError("method must be 'average' or 'median'")
 	xdata = array(xdata)
 	ydata = array(ydata)
 	return(xdata, ydata)
 
 def pack(graph, **kwargs):
-	"""docstring for to_pack"""
+	"""
+		Packing the topological properties of given graph.
+
+		Parameters:
+		-----------
+			graph: NetworkX Graph, NetworkX DiGraph,
+			arbitary args: **kwargs,
+				set prop_name = prop_value
+		Returns:
+		--------
+			a dictionary of topological property values keyed with property names
+	"""
+
 	t = dict()
 	# add meta labels
 	for k in kwargs:
@@ -213,33 +358,76 @@ def pack(graph, **kwargs):
 	t.__setitem__('size', graph.size())
 	t.__setitem__('degree', average_degree(graph))
 	t.__setitem__('asr', nx.degree_assortativity_coefficient(graph))
-	xdata, ydata = get_degree_distribution(graph)
-	t.__setitem__('degDistr_x', xdata)
-	t.__setitem__('degDistr_y', ydata)
-	t.__setitem__('degDistr_fit', powerlaw_fit(xdata, ydata))
-	xdata, ydata = get_degree_correlation(graph)
-	t.__setitem__('knnDistr_x', xdata)
-	t.__setitem__('knnDistr_y', ydata)
-	t.__setitem__('knnDistr_fit', powerlaw_fit(xdata, ydata))
+	t.__setitem__('recp', reciprocity(graph, return_cor = False))
+	t.__setitem__('rho', reciprocity(graph, return_cor = True))
+	t.__setitem__('reinf', reinforce(graph))
 	if graph.is_directed():
-		t.__setitem__('recp', reciprocity(graph))
-		t.__setitem__('reinf', reinforce(graph))
 		t.__setitem__('degcor', degcor(graph))
+		# in_degree
 		xdata, ydata = get_degree_distribution(graph, mode = 'in')
 		t.__setitem__('inDegDistr_x', xdata)
 		t.__setitem__('inDegDistr_y', ydata)
 		t.__setitem__('inDegDistr_fit', powerlaw_fit(xdata, ydata))
+
+		# out_degree
 		xdata, ydata = get_degree_distribution(graph, mode = 'out')
 		t.__setitem__('outDegDistr_x', xdata)
 		t.__setitem__('outDegDistr_y', ydata)
 		t.__setitem__('outDegDistr_fit', powerlaw_fit(xdata, ydata))
-	else:
-		t.__setitem__('cc', nx.average_clustering(graph))
-		t.__setitem__('norm_cc', norm_cc(graph))
-		xdata, ydata = get_cluster_distribution(graph)
-		t.__setitem__('ccDistr_x', xdata)
-		t.__setitem__('ccDistr_y', ydata)
-		t.__setitem__('ccDistr_fit', powerlaw_fit(xdata, ydata))
+
+		# in_knn
+		xdata, ydata = get_degree_correlation(graph, method = 'average', mode = 'in')
+		t.__setitem__('inKnnDistr_avg_x', xdata)
+		t.__setitem__('inKnnDistr_avg_y', ydata)
+		t.__setitem__('inKnnDistr_avg_fit', powerlaw_fit(xdata, ydata))
+
+		xdata, ydata = get_degree_correlation(graph, method = 'median', mode = 'in')
+		t.__setitem__('inKnnDistr_median_x', xdata)
+		t.__setitem__('inKnnDistr_median_y', ydata)
+		t.__setitem__('inKnnDistr_median_fit', powerlaw_fit(xdata, ydata))
+
+		# out_knn
+		xdata, ydata = get_degree_correlation(graph, method = 'average', mode = 'out')
+		t.__setitem__('outKnnDistr_avg_x', xdata)
+		t.__setitem__('outKnnDistr_avg_y', ydata)
+		t.__setitem__('outKnnDistr_avg_fit', powerlaw_fit(xdata, ydata))
+
+		xdata, ydata = get_degree_correlation(graph, method = 'median', mode = 'out')
+		t.__setitem__('outKnnDistr_median_x', xdata)
+		t.__setitem__('outKnnDistr_median_y', ydata)
+		t.__setitem__('outKnnDistr_median_fit', powerlaw_fit(xdata, ydata))
+
+	# degree
+	xdata, ydata = get_degree_distribution(graph)
+	t.__setitem__('degDistr_x', xdata)
+	t.__setitem__('degDistr_y', ydata)
+	t.__setitem__('degDistr_fit', powerlaw_fit(xdata, ydata))
+
+	# clustering
+	t.__setitem__('clustering', mean_clustering(graph, normalized = False))
+	t.__setitem__('clustering_over_random', mean_clustering(graph, normalized = True))
+	t.__setitem__('clustering_over_config', randomly_clustering(graph, tries = 100))
+
+	xdata, ydata = get_cluster_distribution(graph, method = 'average')
+	t.__setitem__('ccDistr_avg_x', xdata)
+	t.__setitem__('ccDistr_avg_y', ydata)
+	t.__setitem__('ccDistr_avg_fit', powerlaw_fit(xdata, ydata))
+
+	xdata, ydata = get_cluster_distribution(graph, method = 'median')
+	t.__setitem__('ccDistr_median_x', xdata)
+	t.__setitem__('ccDistr_median_y', ydata)
+	t.__setitem__('ccDistr_median_fit', powerlaw_fit(xdata, ydata))
+
+	# knn
+	xdata, ydata = get_degree_correlation(graph, method = 'average')
+	t.__setitem__('knnDistr_avg_x', xdata)
+	t.__setitem__('knnDistr_avg_y', ydata)
+	t.__setitem__('knnDistr_avg_fit', powerlaw_fit(xdata, ydata))
+
+	xdata, ydata = get_degree_correlation(graph, method = 'median')
+	t.__setitem__('knnDistr_median_x', xdata)
+	t.__setitem__('knnDistr_median_y', ydata)
+	t.__setitem__('knnDistr_median_fit', powerlaw_fit(xdata, ydata))
 	return(t)
 		
 class DiNet(nx.DiGraph):
@@ -388,6 +576,13 @@ def main(argv):
 		elif opt in ("-d"):
 			asDirected = True
 
+	if inputDir is not None:
+		assert(os.path.exists(inputDir))
+		pattern = re.compile(r".*\.gpickle$") if inputIsPickle else re.compile(r".*.txt$")
+		filelist = filter(lambda x: pattern.match(x) is not None, os.listdir(inputDir))
+		inputFile.extend([os.path.join(inputDir, f) for f in filelist])
+		print inputFile
+		
 	if enableVerbose:
 		print ("inputFile: %s" % inputFile)
 		print ("outputFile: %s" % outputFile)
@@ -397,13 +592,6 @@ def main(argv):
 		print ("heteNames: %s" % heteNames)
 		print ("asDirected: %s" % asDirected)
 
-	if inputDir is not None:
-		assert(os.path.exists(inputDir))
-		pattern = re.compile(r".*\.gpickle$") if inputIsPickle else re.compile(r".*.txt$")
-		filelist = filter(lambda x: pattern.match(x) is not None, os.listdir(inputDir))
-		inputFile.extend([os.path.join(inputDir, f) for f in filelist])
-		print inputFile
-		
 	if outputFile is not None:
 		outputDir = os.path.dirname(outputFile)
 		if outputDir and not (os.path.exists(outputDir)):

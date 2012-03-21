@@ -40,7 +40,10 @@ class LiteDB(dict):
 	def tolist(self, path, *args):
 		#deepkeys = set.intersection(*[set(self[k].keys()) for k in self.iterkeys()])
 		deepkeys = self.showkeys()
-		legal_args = filter(lambda x: x in deepkeys, list(args))
+		if len(args):
+			legal_args = filter(lambda x: x in deepkeys, list(args))
+		else:
+			legal_args = list(deepkeys)
 		legal_args.sort()
 		with open(path, 'w') as F:
 			F.write("%s,%s\n" % ('dataset', ','.join(legal_args)))
@@ -116,11 +119,15 @@ def main(argv):
 		db.load(inputFile)
 
 	if enable_listKeys:
+		listed_dbKeys = db.keys()
+		listed_dbKeys.sort()
+		listed_dbSecKeys = list(db.showkeys())
+		listed_dbSecKeys.sort()
 		print ("keys ----")
-		print ("\n".join(db.keys()))
+		print ("\t%s" % "\n\t".join(listed_dbKeys))
 		print 
 		print ("attribute keys ---")
-		print (" ".join(list(db.showkeys())))
+		print ("\t%s" % "\n\t".join(listed_dbSecKeys))
 		print 
 
 	if len(shownKeys): 
@@ -133,14 +140,17 @@ def main(argv):
 	if len(shownAttributes):
 		for showKey in shownAttributes:
 			print ("----[specific key: %s]----" % showKey)
-			for k in db.iterkeys():
+			for k in iter(shownKeys):
 				print ("[ %s ]" % k)
 				print (db[k][showKey])
 				print 
 
 	if outputFile is not None:
 		if asList:
-			db.tolist(outputFile, *argList)
+			if len(argList):
+				db.tolist(outputFile, *argList)
+			else:
+				db.tolist(outputFile)
 		else:
 			db.save(outputFile)
 
