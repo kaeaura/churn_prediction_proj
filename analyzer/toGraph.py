@@ -5,7 +5,7 @@
 
 from __future__ import print_function
 import re
-import os
+#import os
 import sys
 import time
 import getopt
@@ -13,6 +13,8 @@ import cPickle
 import datetime
 import networkx as nx
 import itertools
+from os import makedirs
+from os.path import exists, dirname, basename, join
 from collections import defaultdict, Counter
 
 __author__ = "Jing-Kai Lou (kaeaura@gmail.com)"
@@ -72,7 +74,7 @@ class EdgeSeries(defaultdict):
 		# make sure that the node attributes only
 		nx.set_node_attributes(g, node_attr_name, {k: node_attr[k] for k in filter(lambda x: node_attr.__contains__(x), g.nodes_iter())})
 		return(g)
-	def forward(self, step = 1, enable_attachment = False, **kwargs):
+	def forward(self, step = 1, **kwargs):
 		"""
 		collect the past <lifespan> days data until currentday and then return a graph object base on these data.
 		move the current day 1 day ahead
@@ -80,27 +82,41 @@ class EdgeSeries(defaultdict):
 		d = dict(self.count_values())
 		subE = [(i, j, d[(i, j)]) for i, j in d.iterkeys()]
 		g = self.create_graph(weighted_ebunch = subE)
-		if enable_attachment:
+		if kwargs:
 			for key in kwargs:
 				g = self.attach_node_attr(g, node_attr = kwargs[key], node_attr_name = key)
 		self.next(step = step)
 		return(g)
 
-def _itemToWeight(item):
-	"""docstring for dictToWeights"""
-	(i, j), w = item
-	return((i, j, w))
 
-def _fileToEdgeAttributes(read_path, as_directed = True, sep = " ", readLineNum = 100000, weight = "freq", enable_verbose = False):
-	"""docstring for _fileToEdgeAttributes"""
-	assert(os.path.exists(read_path))
+def read_temporal_edges(read_path, as_directed = True, sep = " ", timestamp_format = "%Y%m%d", readLineNum = 100000, enable_verbose = False):
+	"""
+		Read the temporal edgelist with line format (time, node1, node2) 
+
+		Parameters:
+		-----------
+			read_path: str, 
+				input file path
+			as_directed: bool, optional, (default = True)
+				If True, treat the logs as directed edges
+			sep: str, optional (default = " ")
+				field seperator
+			timestamp_format: str, optional (default = '%Y%m%d')
+			readLineNum: int, optional, (default = 100000)
+				number of lines to read each time
+			enable_verbose: bool, optiona, (default = False)
+				If True, show the verbose in command line
+		Returns:
+		--------
+			eTimeDict, a dictionary of timestamps keyed with edges
+			tEdgeDict, a dictionary of edges keyed with timestamps
+	""" 
 	with open(read_path, "r") as F:
 		if enable_verbose:
-			print ("\t%s" % os.path.basename(read_path))
+			print ("\t%s" % basename(read_path))
 			print ("\t------------------")
 			print ("\tstart reading file")
 		lineCount = 0
-		#edgeDict = defaultdict(int)
 		eTimeDict = defaultdict(set)
 		tEdgeDict = defaultdict(set)
 		# read file
@@ -112,38 +128,56 @@ def _fileToEdgeAttributes(read_path, as_directed = True, sep = " ", readLineNum 
 				lineCount += 1
 				if (lineCount % readLineNum) == 0 and enable_verbose:
 					print ("\t\t%d lines already read" % lineCount)
-				timestamp, sNode, rNode, wFreq, wSum = line.strip().split(sep)
+				readIn_variables = line.strip().split(sep)
+				if len(readIn_variables) >= 3:
+					timestamp, sNode, rNode = readIn_variables[:3]
 				sNode, rNode = int(sNode), int(rNode)
-				t = datetime.datetime.strptime(timestamp, "%Y%m%d")
-				#values = int(wFreq) if weight == "freq" else int(wSum)
-				if as_directed:
-					pairs = (sNode, rNode)
-				else:
-					pairs = (sNode, rNode) if sNode <= rNode else (rNode, sNode)
-				#edgeDict[pairs] += values
-				#eTimeDict[pairs].add(_strToDate(t))
+				t = datetime.datetime.strptime(timestamp, timestamp_format)
+				pairs = (sNode, rNode)
+				if not as_directed: pairs.sort()
 				eTimeDict[pairs].add(t)
 				tEdgeDict[t].add(pairs)
 		if enable_verbose:
 			print ("\t\t%d lines already read" % lineCount)
-	#return (edgeDict, eTimeDict)
 	return (eTimeDict, tEdgeDict)
 
-def fileToStatus(read_path, sep = " ", readLineNum = 100000, enable_verbose = False):
+def read_node_attrs(read_path, fields = list(), sep = " ", readLineNum = 100000, enable_verbose = False, enable_header = False):
 	"""
-	return a dictionary of sets that refers the profiles (account, gender, race) of node
+	Read the node attributes with line format (node, *fields)
+
+	Parameters:
+	-----------
+		read_path: str,
+			input file path
+		fields: list of str, optional, (default = [])
+			the fields to read
+		sep: str, optional (default = " ")
+			field seperator
+		readLineNum: int, optional, (default = 100000)
+			number of lines to read each time
+		enable_verbose: bool, optiona, (default = False)
+			if True, show the verbose in command line
+		enable_header: bool, optional, (default = False)
+			if True, then take the first line as parameter fields
+	Returns:
+	--------
+		node_attr, a dictionary of node attribute dictionaries keyed with attribute names (i.e. fields)
+	Example:
+	--------
+		file: Alice_Node_Attr.txt
+		#0 fairyo08189 0 2
+		#1 spadei98388 0 0
+		#2 spaden42272 0 0
+
+		node_attr = read_node_attrs(read_path = 'Alice_Node_Attr', fields = ['account', 'gender', 'race'])
+		node_attr['race'] = {0: '2', 1: '0', 2: '0'}
+		node_attr['account'].values() = ['fairyo08189', 'spadei98388', 'spaden42272'] 
 	"""
-	#0 fairyo08189 0 2
-	#1 spadei98388 0 0
-	#2 spaden42272 0 0
-	assert(os.path.exists(read_path))
 	with open(read_path, "r") as F:
 		if enable_verbose:
 			print ("\tstart reading file")
 		lineCount = 0
-		accountDict = dict()
-		genderDict = dict()
-		raceDict = dict()
+		node_attr = defaultdict(dict)
 		while True:
 			lines = F.readlines(readLineNum)
 			if not lines:
@@ -152,25 +186,42 @@ def fileToStatus(read_path, sep = " ", readLineNum = 100000, enable_verbose = Fa
 				lineCount += 1
 				if (lineCount % readLineNum) == 0 and enable_verbose:
 					print ("\t\t%d lines already read" % lineCount)
-				node, account, gender, race = line.strip().split(sep)
-				node, gender, race = int(node), int(gender), int(race)
-				accountDict.__setitem__(node, account)
-				genderDict.__setitem__(node, gender)
-				raceDict.__setitem__(node, race)
+				readIn_variables = line.strip().split(sep)
+				if enable_header and lineCount == 1:
+					fields = list(readIn_variables[1:])
+					next
+				if readIn_variables: node = int(readIn_variables.pop(0))
+				for field in fields:
+					node_attr[field].__setitem__(node, readIn_variables.pop(0))
 		if enable_verbose:
 			print ("\t\t%d lines already read" % lineCount)
-		return(accountDict, genderDict, raceDict)
+		return(node_attr)
 
-def fileToMembership(read_path, sep = " ", readLineNum = 100000, enable_verbose = False):
+def read_node_attrSet(read_path, node_col, attr_col, sep = " ", readLineNum = 100000, enable_verbose = False):
 	"""
-	return a dictionary of sets that refers the families of node
+	Read the node attributes as sets. Therefore, the node attributes are handled as elements.
+
+	Parameters:
+	-----------
+		read_path: str,
+			input file path
+		node_col: int, 
+			the columen index to read as node 
+		attr_col: int,
+			the columen index to read as node_attr element
+		readLineNum: int, optional, (default = 100000)
+			number of lines to read each time
+		enable_verbose: bool, optiona, (default = False)
+			if True, show the verbose in command line
+	Returns:
+	--------
+		node_attrSet, a dictionary of set keyed with node
 	"""
-	assert(os.path.exists(read_path))
 	with open(read_path, "r") as F:
 		if enable_verbose:
 			print ("\tstart reading file")
 		lineCount = 0
-		memberDict = defaultdict(set)
+		node_attrSet = defaultdict(set)
 		while True:
 			lines = F.readlines(readLineNum)
 			if not lines:
@@ -179,23 +230,40 @@ def fileToMembership(read_path, sep = " ", readLineNum = 100000, enable_verbose 
 				lineCount += 1
 				if (lineCount % readLineNum) == 0 and enable_verbose:
 					print ("\t\t%d lines already read" % lineCount)
-				timestamp, fNode, sNode, wFreq, wSum = line.strip().split(sep)
-				sNode, fNode = int(sNode), int(fNode)
-				# todo: the timestamp to join a family? (for diffusion issue)
-				#t = datetime.datetime.strptime(timestamp, "%Y%m%d")
-				memberDict[sNode].add(fNode)
+				readIn_variables = line.strip().split(sep)
+				if len(readIn_variables):
+					sNode = readIn_variables[node_col - 1]
+					sElt = readIn_variables[attr_col - 1]
+					node_attrSet[int(sNode)].add(sElt)
 		if enable_verbose:
 			print ("\t\t%d lines already read" % lineCount)
-		return(memberDict)
+		return(node_attrSet)
 
-def _fileToFriendship(read_path, as_directed = True, sep = " ", readLineNum = 100000, enable_verbose = False):
-	"""docstring for fileToF"""
-	assert(os.path.exists(read_path))
+def read_edges(read_path, as_directed = True, sep = " ", readLineNum = 100000, enable_verbose = False):
+	"""
+		Read the edgelist with line format (node1, node2)
+
+		Parameters:
+		-----------
+			read_path: str,
+				input file path
+			as_directed: bool, optional, (default = True)
+				If True, treat the logs as directed edges
+			sep: str, optional (default = " ")
+				field seperator
+			readLineNum: int, optional, (default = 100000)
+				number of lines to read each time
+			enable_verbose: bool, optiona, (default = False)
+				If True, show the verbose in command line
+		Returns:
+		--------
+			edges, a list of edges
+	"""
 	with open(read_path, "r") as F:
 		if enable_verbose:
 			print ("\tstart reading file")
 		lineCount = 0
-		friendSet = set()
+		edges = set()
 		while True:
 			lines = F.readlines(readLineNum)
 			if not lines:
@@ -209,22 +277,20 @@ def _fileToFriendship(read_path, as_directed = True, sep = " ", readLineNum = 10
 					sNode, fNode = int(sNode), int(fNode)
 				except ValueError:
 					next
-				if as_directed:
-					friendSet.add((fNode, sNode))
-				else:
-					if int(fNode) <= int(sNode):
-						friendSet.add((fNode, sNode))
-					else:
-						friendSet.add((sNode, fNode))
+				pairs = (fNode, sNode)
+				if not as_directed: 
+					pairs = tuple(sorted(list(pairs)))
+				edges.add(pairs)
 		if enable_verbose:
 			print ("\t\t%d lines already read" % lineCount)
-		return(list(friendSet))
+		return(list(edges))
 
-def _toGraph(eTimeDict, as_directed = True, as_simple = True, weight = "weight"):
-	if as_simple:
-		G = nx.DiGraph() if as_directed else nx.Graph()
-	else:
-		G = nx.MultiDiGraph() if as_directed else nx.MultiGraph()
+def _itemToWeight(item):
+	(i, j), w = item
+	return((i, j, w))
+
+def _toGraph(eTimeDict, as_directed = True, weight = "weight"):
+	G = nx.DiGraph() if as_directed else nx.Graph()
 	if len(eTimeDict.keys()):
 		G.add_weighted_edges_from(map(lambda x: _itemToWeight(x), eTimeDict.items()))
 		G.remove_edges_from(G.selfloop_edges())
@@ -233,12 +299,14 @@ def _toGraph(eTimeDict, as_directed = True, as_simple = True, weight = "weight")
 def main(argv):
 	"""readling the logs, and save it in pickle format"""
 	try:
-		opts, args = getopt.getopt(argv, "hi:m:f:S:o:s:xN:ud:vw:", ["help"])
+		#opts, args = getopt.getopt(argv, "hi:m:f:S:o:s:xN:d:vw:", ["help"])
+		opts, args = getopt.getopt(argv, "hi:uF:o:s:xd:w:S:n:f:N:v", ["help"])
 	except getopt.GetoptError:
 		print ("The given argv incorrect")
 
 	enableVerbose = False
 	inputChatFile = None
+	timestampFormat = "%Y%m%d"
 	importMember = False
 	inputMemberFile = None
 	importStatus = False
@@ -247,28 +315,33 @@ def main(argv):
 	outputGPickleFile = None
 	outputGSeriesPickleFile = None
 	asDirected = True
-	asSimple = True
 	isMerged = False
-	shiftSapnList = list()
+	shiftSpanList = list()
 	movingStep = 1
 	enableCompact = True
+	node_status_attrs = [ 'account', 'gender', 'race' ] 
 	temporalSizeLimitation = 3000000
 
 	def usage():
-		print ("turn the logs into graphs (format: pickle)")
+		print
+		print ("----------------------------------------")
+		print ("read the logs and output pickles describing graphs")
+		print
 		print ("-h, --help: print this usage")
-		print ("-i ...: input path (format: timestamp(%Y%m%d) sid rid w1 w2")
-		print ("-m ...: membership path")
-		print ("-f ...: friendship path")
-		print ("-S ...: status path")
-		print ("-o ...: output path for underlay graph")
-		print ("-s ...: output path for list of temporal series graphs")
-		print ("-x : disable compact save format for list of temporal series graphs")
-		print ("-N : the size of compact temporal sereis graphs, 3000000 (edges) by default")
-		print ("-u : read as undirected")
-		print ("-d 7,14,1000: length of lifespan in days. handle multiple inputs seprated by ,")
-		print ("-v: enable verbose")
-		print ("-w: moving step width, 1 day by default")
+		print ("-i ...: input path (format: timestamp(%Y%m%d) sid rid")
+		print ("-u : [ optional ], read files as undirected")
+		print ("-F ...: [ optional ] timestamp format, default = '%Y%m%d'")
+		print ("-o ...: output path for graph")
+		print ("-s ...: output path for temporal graph series")
+		print ("\t-x : [ optional, only works if -s given ], disable compact save format for list of temporal series graphs")
+		print ("\t-d 7,14,1000: [ requiered if -s given ], length of lifespan (in days) of temporal graph series. can handle multiple inputs seprated by ','")
+		print ("\t-w: [ optional, only works if -s given ], step width of tempral graph series, 1 day by default")
+		print ("-S ...: [ optional ], applying node attributes, status path")
+		print ("-m ...: [ optional ], applying node attributes (as sets), membership path")
+		print ("-f ...: [ optional ], applying hete. edges, friendship path")
+		print ("-N ... : [ optional ], the size of compact temporal sereis graphs, 3000000 (edges) by default")
+		print ("-v : [ optional ], enable verbose mode")
+		print ("----------------------------------------")
 
 	for opt, arg in opts:
 		if opt in ("-h", "--help"):
@@ -295,102 +368,111 @@ def main(argv):
 		elif opt in ("-M"):
 			isMerged = True
 		elif opt in ("-d"):
-			shiftSapnList = [int(ss) for ss in arg.split(',')]
+			shiftSpanList = [int(ss) for ss in arg.split(',')]
 		elif opt in ("-w"):
 			movingStep = int(arg)
 		elif opt in ("-v"):
 			enableVerbose = True
+		elif opt in ("-F"):
+			timestampFormat = arg
 
 	if enableVerbose:
 		print ("inputChatFile: %s" % inputChatFile)
 		print ("inputMemberFile: %s" % inputMemberFile)
 		print ("inputFriendshipFile: %s" % inputMemberFile)
 
+	# checking the arguments
+	if not outputGPickleFile and not outputGSeriesPickleFile:
+		print ("\tWarnning! Neither given graph output path nor given temporal graph series output path, so skip")
+		print ("\targument -o or -s needed")
+		exit()
+	if not shiftSpanList and outputGSeriesPickleFile:
+		print ("\tWarnning! Given temporal graph series output path but without life span length, so skip")
+		print ("\targument -d needed")
+		exit()
+
 	timeTotalStart = time.time()
 	timeLoadStart = time.time()
 
-	# readFile: node-list, edge-list
-	eDict, tDict = _fileToEdgeAttributes(read_path = inputChatFile, as_directed = asDirected, enable_verbose = enableVerbose)
+	# readFile
+	eDict, tDict = read_temporal_edges(read_path = inputChatFile, timestamp_format = timestampFormat, as_directed = asDirected, enable_verbose = enableVerbose)
 
 	# readFile: status
-	aDict, gDict, rDict = None, None, None
-	if inputStatusFile is not None and os.path.exists(inputStatusFile):
+	attrsDict = None
+	if inputStatusFile is not None and exists(inputStatusFile):
 		importStatus = True
 		if enableVerbose: print ('\t\tadditional status node attributes are added')
-		aDict, gDict, rDict = fileToStatus(read_path = inputStatusFile, enable_verbose = enableVerbose)
+		attrsDict = read_node_attrs(read_path = inputStatusFile, fields = ['account', 'gender', 'race'], enable_verbose = enableVerbose)
 
 	# readFile: membership
 	mDict = None
-	if inputMemberFile is not None and os.path.exists(inputMemberFile):
+	if inputMemberFile is not None and exists(inputMemberFile):
 		importMember = True
 		if enableVerbose: print ('\t\tadditional membership node attributes are added')
-		mDict = fileToMembership(read_path = inputMemberFile, enable_verbose = enableVerbose)
+		mDict = read_node_attrSet(read_path = inputMemberFile, node_col = 3, attr_col = 2, enable_verbose = enableVerbose)
 
 	# readFile: friendship
 	fList = None
-	if inputFriendshipFile is not None and os.path.exists(inputFriendshipFile):
+	if inputFriendshipFile is not None and exists(inputFriendshipFile):
 		if enableVerbose: print ('\t\tadditional friendship edge attributes are added')
-		fList = _fileToFriendship(read_path = inputFriendshipFile, enable_verbose = enableVerbose)
-	else:
-		print ("\t%s does not exist" % inputFriendshipFile)
+		fList = read_edges(read_path = inputFriendshipFile, as_directed = asDirected, enable_verbose = enableVerbose)
+
 	timeLoadEnd = time.time()
 	print ("\t[LoadTime] %.2f sec" % (timeLoadEnd - timeLoadStart))
 
 	# buildGraph
 	timeBuildStart = time.time()
-	G = _toGraph(eDict, as_directed = asDirected, as_simple = asSimple)
-	hMDict = None
-	if mDict is not None:
-		hMDict = defaultdict(set)
-		for k in set(mDict.keys()) & set(G.nodes()):
-			hMDict[k] = mDict.pop(k)
-		nx.set_node_attributes(G, 'family', hMDict)
-	hADict, hGDict, hRDict = None, None, None
-	if aDict is not None and gDict is not None and rDict is not None:
-		hADict = dict()
-		hGDict = dict()
-		hRDict = dict()
-		for k in set(aDict.keys()) & set(G.nodes()):
-			hADict.__setitem__(k, aDict.pop(k))
-			hGDict.__setitem__(k, gDict.pop(k))
-			hRDict.__setitem__(k, rDict.pop(k))
-		nx.set_node_attributes(G, 'account', hADict)
-		nx.set_node_attributes(G, 'gender', hGDict)
-		nx.set_node_attributes(G, 'race', hRDict)
-	if fList is not None:
-		timeFilterStart = time.time()
-		nodeSet = set(G.nodes())
-		inducedFList = filter(lambda x: set(x).issubset(nodeSet), fList)
-		inducedFList = list(set(inducedFList))
-		timeFilterEnd = time.time()
+	G = _toGraph(eDict, as_directed = asDirected)
+	nodes = set(G.nodes())
 
-		timeAddingStart = time.time()
+	# attach node attributes: family, account, gender, ...
+	nodeAttrs = defaultdict(dict)
+
+	if mDict: 
+		#for k in set(mDict.keys()) & set(G.nodes()):
+		for k in itertools.ifilter(lambda x: nodes.__contains__(x), mDict.iterkeys()):
+			nodeAttrs['family'].__setitem__(k, mDict[k])
+		del mDict
+
+	if attrsDict:
+		for attr in attrsDict.iterkeys():
+			for k in itertools.ifilter(lambda x: nodes.__contains__(x), attrsDict[attr].iterkeys()):
+				nodeAttrs[attr].__setitem__(k, attrsDict[attr][k])
+
+	for nodeAttr in nodeAttrs.iterkeys():
+		nx.set_node_attributes(G, nodeAttr, nodeAttrs[nodeAttr])
+
+	# attach new (hete-) links
+	if fList: 
+		inducedFList = filter(lambda x: set(x).issubset(nodes), fList)
 		G.add_weighted_edges_from(map(lambda x: _itemToWeight(x), zip(inducedFList, [1] * len(inducedFList))), weight = 'friend')
-		timeAddingEnd = time.time()
 		del inducedFList
 	del fList
+
 	timeBuildEnd = time.time()
 	print ("\t[BuildTime] %.2f sec" % (timeBuildEnd - timeBuildStart))
 
 	# saveFile [ Underlay Graph ] =============
 	if outputGPickleFile is not None:
-		gSaveDir = os.path.dirname(outputGPickleFile)
-		if len(gSaveDir) and not os.path.exists(gSaveDir):
-			os.makedirs(gSaveDir)
+		gSaveDir = dirname(outputGPickleFile)
+		if len(gSaveDir) and not exists(gSaveDir):
+			makedirs(gSaveDir)
 
 		timeSaveStart = time.time()
 		nx.write_gpickle(G, outputGPickleFile)
 		timeSaveEnd = time.time()
 		print ("\t[SaveTime] %.2f sec" % (timeSaveEnd - timeSaveStart))
 		print ("\t[FileSaved] graph is saved")
+		print ("\t[Destination] %s" % outputGPickleFile)
+		print 
 
 	# saveSeriesFile [ Temporal Graph Series] =============
-	if outputGSeriesPickleFile is not None:
-		gSeriesSaveDir = os.path.dirname(outputGSeriesPickleFile)
-		if len(gSeriesSaveDir) and not os.path.exists(gSeriesSaveDir):
-			os.makedirs(gSeriesSaveDir)
+	if outputGSeriesPickleFile:
+		gSeriesSaveDir = dirname(outputGSeriesPickleFile)
+		if gSeriesSaveDir and not exists(gSeriesSaveDir):
+			makedirs(gSeriesSaveDir)
 
-		for shiftSpan in shiftSapnList:
+		for shiftSpan in shiftSpanList:
 			print ("\t[Process-%d-Series]" % shiftSpan)
 			timeShiftStart = time.time()
 
@@ -399,9 +481,7 @@ def main(argv):
 			gSeries.setup()
 
 			if enableCompact:
-				seriesBasename = "%ddays_%s" % (shiftSpan, os.path.basename(outputGSeriesPickleFile))
-				seriesFilename = os.path.join(os.path.dirname(outputGSeriesPickleFile), seriesBasename)
-				seriesFilenameParts = list()
+				seriesFilename = outputGSeriesPickleFile
 				partIndex = 1
 
 				while gSeries.currentDay <= gSeries.eDay:
@@ -410,14 +490,7 @@ def main(argv):
 					while temporalSize <= temporalSizeLimitation and gSeries.currentDay <= gSeries.eDay:
 						print ("\t\t[%s | %s]\r" % (gSeries.currentDay.strftime("%d/%m,%y"), gSeries.eDay.strftime("%d/%m,%y")), end = "")
 						sys.stdout.flush()
-						if importMember and importStatus:
-							tG = gSeries.forward(step = movingStep, enable_attachment = True, family = hMDict, gender = hGDict, race = hRDict)
-						elif importMember and not importStatus:
-							tG = gSeries.forward(step = movingStep, enable_attachment = True, family = hMDict)
-						elif not importMember and importStatus:
-							tG = gSeries.forward(step = movingStep, enable_attachment = True, gender = hGDict, race = hRDict)
-						elif not importMember and not importStatus:
-							tG = gSeries.forward(step = movingStep, enable_attachment = False)
+						tG = gSeries.forward(step = movingStep, **nodeAttrs)
 						temporalGraphs.append(tG)
 						temporalSize += tG.size()
 
@@ -425,49 +498,45 @@ def main(argv):
 						break
 					else:
 						print ("\n\t\t reach the limitation of edges (%d); so split out; part - %d" % (temporalSizeLimitation, partIndex))
+						seriesBasename = "c%d-s%d-l%d_%s" % (shiftSpan, movingStep, len(temporalGraphs), basename(outputGSeriesPickleFile))
+						seriesFilename = join(gSeriesSaveDir, seriesBasename)
 						seriesFilenamePart = "%s_part%d.cpickle" % (re.sub("\.[cCgG][pP]ickle$", "", seriesFilename), partIndex)
-						seriesFilenameParts.append(seriesFilenamePart)
 						cPickle.dump(temporalGraphs, open(seriesFilenamePart, "wb"))
 						partIndex += 1
 
 				if temporalGraphs:
+					seriesBasename = "c%d-s%d-l%d_%s" % (shiftSpan, movingStep, len(temporalGraphs), basename(outputGSeriesPickleFile))
+					seriesFilename = join(gSeriesSaveDir, seriesBasename)
 					if partIndex == 1:
 						cPickle.dump(temporalGraphs, open(seriesFilename, "wb"))
 					else:
-						cPickle.dump(temporalGraphs, open("%s_part%d.cpickle" % (re.sub("\.[cCgG][pP]ickle$", "", seriesFilename), partIndex), "wb"))
+						seriesFilenamePart = "%s_part%d.cpickle" % (re.sub("\.[cCgG][pP]ickle$", "", seriesFilename), partIndex)
+						cPickle.dump(temporalGraphs, open(seriesFilenamePart, "wb"))
 
-				del temporalGraphs, gSeries, seriesFilenameParts
+				del temporalGraphs, gSeries 
 
 			else:
 				seriesFilename = outputGSeriesPickleFile
-				seriesFilenameParts = list()
 				partIndex = movingStep
 
 				while gSeries.currentDay <= gSeries.eDay:
 					print ("\t\t[%s | %s]\r" % (gSeries.currentDay.strftime("%d/%m,%y"), gSeries.eDay.strftime("%d/%m,%y")), end = "")
 					sys.stdout.flush()
-					if importMember and importStatus:
-						tG = gSeries.forward(step = movingStep, enable_attachment = True, family = hMDict, gender = hGDict, race = hRDict)
-					elif importMember and not importStatus:
-						tG = gSeries.forward(step = movingStep, enable_attachment = True, family = hMDict)
-					elif not importMember and importStatus:
-						tG = gSeries.forward(step = movingStep, enable_attachment = True, gender = hGDict, race = hRDict)
-					elif not importMember and not importStatus:
-						tG = gSeries.forward(step = movingStep, enable_attachment = False)
+					tG = gSeries.forward(step = movingStep, **nodeAttrs)
 
-					seriesFilenamePart = "%s_shift%d.gpickle" % (re.sub("\.[cCgG][pP]ickle$", "", seriesFilename), partIndex)
-					seriesFilenameParts.append(seriesFilenamePart)
+					seriesFilenamePart = "%s_c%d-s%d-l%d.gpickle" % (re.sub("\.[cCgG][pP]ickle$", "", seriesFilename), shiftSpan, movingStep, partIndex)
 					cPickle.dump(tG, open(seriesFilenamePart, "wb"))
 					partIndex += movingStep
 
-				del tG, seriesFilenameParts
+				del tG
 
 			timeShiftEnd = time.time()
 			print ("\n\t[FileSaved] %dd graph series saved" % shiftSpan)
+			print ("\t[Destination] %s" % (gSeriesSaveDir if gSeriesSaveDir else "."))
 			print ("\t[%d-day ShiftTime] %.2f sec\n" % (shiftSpan, timeShiftEnd - timeShiftStart))
 
 	timeTotalEnd = time.time()
-	del mDict, aDict, gDict, rDict, eDict, tDict
+	del eDict, tDict
 	print ("\t--")
 	print ("\t[TotalTime] %.2f mins\n" % ((timeTotalEnd - timeTotalStart) / 60))
 
