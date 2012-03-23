@@ -335,6 +335,17 @@ def get_degree_correlation(g, method = 'average', mode = 'both'):
 	ydata = array(ydata)
 	return(xdata, ydata)
 
+def easy_pack(graph, **kwargs):
+	"""Packing the topological properties of given graph"""
+	t = dict()
+	for k in kwargs:
+		t.__setitem__(k, kwargs[k])
+	# resolve the features
+	t.__setitem__('order', graph.order())
+	t.__setitem__('size', graph.size())
+	t.__setitem__('degree', average_degree(graph))
+	return(t)
+
 def pack(graph, **kwargs):
 	"""
 		Packing the topological properties of given graph.
@@ -504,7 +515,7 @@ def main(argv):
 	"""docstring for main"""
 	inputFile = list()
 	inputDir = None
-	inputIsPickle = True
+	inputFileType = 'gpickle'
 	outputFile = None
 	dataName = None
 	enableVerbose = False
@@ -520,26 +531,27 @@ def main(argv):
 	ofs = ","
 
 	def usage():
-		"""docstring for usage"""
-		print ("--")
-		print ("read the gpickles to analyze")
 		print
-		print ("\t-h, --help: print this usage")
-		print ("\t-i: inputFile (gpickle)")
-		print ("\t-I: inputDir (directory)")
-		print ("\t-e: inputFile type = edgelist")
-		print ("\t-o: outputFile")
-		print ("\t-r: dataName")
-		print ("\t-v: verbose")
-		print ("\t-M: Is Hete. data")
-		print ("\t-N: Hete. names")
-		print ("\t-c: meta data for graph")
-		print ("\t-a: append previous result")
-		print ("\t-f: force save")
-		print ("\t-d: as directed (only valid while reading edgelist)")
+		print ("----------------------------------------")
+		print ("read the gpickles to pack as db file")
+		print
+		print ("-h, --help: print this usage")
+		print ("-i: inputFile (gpickle)")
+		print ("-I: inputDir (directory)")
+		print ("-e: inputFile type = edgelist")
+		print ("-p: inputFile type = cpickle")
+		print ("-o: outputFile")
+		print ("-r: dataName")
+		print ("-v: verbose")
+		print ("-M: Is Hete. data")
+		print ("-N: Hete. names")
+		print ("-c: meta data for graph")
+		print ("-a: append previous result")
+		print ("-f: force save")
+		print ("-d: as directed (only valid while reading edgelist)")
 
 	try:
-		opts, args = getopt.getopt(argv, "hi:I:eo:r:vMN:c:afd", ["help"])
+		opts, args = getopt.getopt(argv, "hi:I:epo:r:vMN:c:afd", ["help"])
 	except getopt.GetoptError, err:
 		print ("The given argv incorrect")
 		usage()
@@ -555,7 +567,9 @@ def main(argv):
 		elif opt in ("-I"):
 			inputDir = arg
 		elif opt in ("-e"):
-			inputIsPickle = False
+			inputFileType = 'edgelist'
+		elif opt in ("-p"):
+			inputFileType = 'cpickle'
 		elif opt in ("-o"):
 			outputFile = arg
 		elif opt in ("-r"):
@@ -576,13 +590,15 @@ def main(argv):
 		elif opt in ("-d"):
 			asDirected = True
 
-	if inputDir is not None:
+	inputFileTypeDict = { "gpickle": ".*\.gpickle$", "edgelist": ".*\.txt$", "cpickle": ".*\.cpickle$" }
+
+	if inputDir:
 		assert(os.path.exists(inputDir))
-		pattern = re.compile(r".*\.gpickle$") if inputIsPickle else re.compile(r".*.txt$")
+		pattern = re.compile(inputFileTypeDict[inputFileType]) 
 		filelist = filter(lambda x: pattern.match(x) is not None, os.listdir(inputDir))
 		inputFile.extend([os.path.join(inputDir, f) for f in filelist])
 		print inputFile
-		
+
 	if enableVerbose:
 		print ("inputFile: %s" % inputFile)
 		print ("outputFile: %s" % outputFile)
@@ -607,23 +623,31 @@ def main(argv):
 		print ("processing %s" % f)
 		if not os.path.exists(f): next
 
-		if inputIsPickle:
+		if inputFileType == 'gpickle':		# a graph
 			g = nx.read_gpickle(file(f, "r"))
-		else:
-			if asDirected:
-				g = nx.read_edgelist(f, nodetype = int, create_using = nx.DiGraph())
-			else:
-				g = nx.read_edgelist(f, nodetype = int, create_using = nx.Graph())
+		elif inputFileType == 'edgelist':	# edgelist
+			g = nx.read_edgelist(f, nodetype = int, create_using = nx.DiGraph()) if asDirected else nx.read_edgelist(f, nodetype = int, create_using = nx.Graph())
+		elif inputFileType == 'cpickle':	# a list of graphs
+			g = cPickle.load(file(f, "r"))
 
 		graphs = list()
+
 		if IsHete:
-			net = DiNet(g) if g.is_directed() else Net(g)
-			graphs.extend(net.extract_multiple_edges(*heteNames))
+			for gg in g:
+				net = DiNet(gg) if g.is_directed() else Net(gg)
+				graphs.extend(net.extract_multiple_edges(*heteNames))
 		else:
-			graphs.append(g)
+			if inputFileType in ('gpickle', 'edgelist'):
+				graphs.append(g)
+			elif inputFileType in ('cpickle'):
+				graphs.extend(g)
+			else:
+				print ('empty file')
+				sys.exit()
 
 		for graph in iter(graphs):
-			autoName = re.sub(".gpickle", "", os.path.basename(f)) if inputIsPickle else re.sub(".txt", "", os.path.basename(f))
+			#autoName = re.sub(".gpickle", "", os.path.basename(f)) if inputIsPickle else re.sub(".txt", "", os.path.basename(f))
+			autoName = re.sub(".%s" % inputFileType, "", os.path.basename(f)) 
 			fillinName = autoName if dataName is None else dataName
 			graph_key = "_".join([fillinName, str(graph), 'd' if graph.is_directed() else 'u'])
 			if db.__contains__(graph_key) and not forceSave:
@@ -631,7 +655,8 @@ def main(argv):
 				print ("skip")
 				next
 			else:
-				db.__setitem__(graph_key, pack(graph, **metalabels))
+				db.__setitem__(graph_key, easy_pack(graph, **metalabels))
+				#db.__setitem__(graph_key, pack(graph, **metalabels))
 			
 	db.save(outputFile)
 

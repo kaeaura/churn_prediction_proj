@@ -28,6 +28,7 @@ GRAPH_DIR = ${ACT_COLLECTION_DIR}/graphs
 FEATURE_DIR = ${DATA_DIR}/features
 FEATURE_PART_DIR = ${FEATURE_DIR}/parts
 REPORT_DIR = ${EXP_RESUILT_DIR}/report
+GRAPHS_DIR = ${EXP_RESUILT_DIR}/graphs
 
 # settings
 #REALMS = alice mermaid 
@@ -45,11 +46,11 @@ REALMS = alice
 #REALMS = wolf
 #CHANNELS = tell say party family 
 CHANNELS = family tell
-#LIFESPANS = 1 7 14 42 500
-#LIFESPANSS = 1,7,14,42,500
-LIFESPANS = 500
-LIFESPANSS = 500
-STEPWIDTH = 30
+LIFESPANS = 1 500
+LIFESPANSS = 1,500
+STEPWIDTH = 1
+#LIFESPANS = 500
+#LIFESPANSS = 500
 
 sweave: doc/feature_report.Rnw
 	cd doc ;\
@@ -240,8 +241,8 @@ daily_compact: manipulators/log_compactor.awk manipulators/log_chopper.awk
 	done
 
 # build the graph
-to_graph: manipulators/toGraph.py
-	UNIT="daily"; \
+to_graph: analyzer/toGraph.py
+	@UNIT="daily"; \
 	for REALM in ${REALMS}; do \
 		echo "fileToPickle-stage: $${REALM}"; \
 		EDGES=$${REALM}_tell.masked.$${UNIT} ; \
@@ -250,17 +251,16 @@ to_graph: manipulators/toGraph.py
 		STATUS=$${REALM}_char; \
 		PARSED_PATH=${ACT_COLLECTION_DIR}/parsed/$${REALM}/ ; \
 		UNIT_PATH=${ACT_COLLECTION_DIR}/$${UNIT}/$${REALM}/ ; \
-		DEST_PATH=${REPORT_DIR}/graphs/ ; \
+		DEST_PATH=${GRAPHS_DIR} ; \
 		ARG_D="-d ${LIFESPANSS}" ; \
 		ARG_W="-w ${STEPWIDTH}" ; \
-		ARG_X="-x"; \
 		test -d $${DEST_PATH} || mkdir -p $${DEST_PATH} ; \
 		test -f $${UNIT_PATH}/$${MEMBERS} && ARG_M="-m $${UNIT_PATH}/$${MEMBERS}" || ARG_M="" ; \
 		test -f $${PARSED_PATH}/$${STATUS} && ARG_S="-S $${PARSED_PATH}/$${STATUS}" || ARG_S="";\
 		test -f $${PARSED_PATH}/$${FRIENDS} && ARG_F="-f $${PARSED_PATH}/$${FRIENDS}" || ARG_F=""; \
 		test -f $${UNIT_PATH}/$${EDGES} \
-			&& echo "python manipulators/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_F} $${ARG_X} $${ARG_D} $${ARG_W} -o $${DEST_PATH}/$${REALM}_d.gpickle -s $${DEST_PATH}/temporal/$${REALM}_d.cpickle" \
-			&& python manipulators/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_F} $${ARG_X} $${ARG_D} $${ARG_W} -o $${DEST_PATH}/$${REALM}_d.gpickle -s $${DEST_PATH}/temporal/$${REALM}_d.cpickle \
+			&& echo "python analyzer/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_F} $${ARG_D} $${ARG_W} -o $${DEST_PATH}/$${REALM}_d.gpickle -s $${DEST_PATH}/temporal/$${REALM}_d.cpickle" \
+			&& python analyzer/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_F} $${ARG_D} $${ARG_W} -o $${DEST_PATH}/$${REALM}_d.gpickle -s $${DEST_PATH}/temporal/$${REALM}_d.cpickle \
 			|| echo "$${UNIT_PATH}/$${EDGES}, $${UNIT_PATH}/$${MEMBERS}, or $${PARSED_PATH}/$${FRIENDS} does not exist" ; \
 	done;
 
