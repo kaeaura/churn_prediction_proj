@@ -528,6 +528,7 @@ def main(argv):
 	forceSave = False
 	asDirected = False
 	enable_appendant = False
+	enable_easyPack = False
 	ofs = ","
 
 	def usage():
@@ -548,10 +549,11 @@ def main(argv):
 		print ("-c: meta data for graph")
 		print ("-a: append previous result")
 		print ("-f: force save")
+		print ("-E: easy pack")
 		print ("-d: as directed (only valid while reading edgelist)")
 
 	try:
-		opts, args = getopt.getopt(argv, "hi:I:epo:r:vMN:c:afd", ["help"])
+		opts, args = getopt.getopt(argv, "hi:I:epo:r:vMN:c:afEd", ["help"])
 	except getopt.GetoptError, err:
 		print ("The given argv incorrect")
 		usage()
@@ -587,6 +589,8 @@ def main(argv):
 			enable_appendant = True
 		elif opt in ("-f"):
 			forceSave = True
+		elif opt in ("-E"):
+			enable_easyPack = True
 		elif opt in ("-d"):
 			asDirected = True
 
@@ -655,8 +659,10 @@ def main(argv):
 				print ("skip")
 				next
 			else:
-				db.__setitem__(graph_key, easy_pack(graph, **metalabels))
-				#db.__setitem__(graph_key, pack(graph, **metalabels))
+				if enable_easyPack:
+					db.__setitem__(graph_key, easy_pack(graph, **metalabels))
+				else:
+					db.__setitem__(graph_key, pack(graph, **metalabels))
 			
 	db.save(outputFile)
 

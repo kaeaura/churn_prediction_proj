@@ -131,15 +131,65 @@ def read_temporal_edges(read_path, as_directed = True, sep = " ", timestamp_form
 				readIn_variables = line.strip().split(sep)
 				if len(readIn_variables) >= 3:
 					timestamp, sNode, rNode = readIn_variables[:3]
-				sNode, rNode = int(sNode), int(rNode)
-				t = datetime.datetime.strptime(timestamp, timestamp_format)
-				pairs = (sNode, rNode)
-				if not as_directed: pairs.sort()
-				eTimeDict[pairs].add(t)
-				tEdgeDict[t].add(pairs)
+					sNode, rNode = int(sNode), int(rNode)
+					t = datetime.datetime.strptime(timestamp, timestamp_format)
+					pairs = (sNode, rNode)
+					if not as_directed: 
+						pairs = tuple(sorted(list(pairs)))
+					eTimeDict[pairs].add(t)
+					tEdgeDict[t].add(pairs)
 		if enable_verbose:
 			print ("\t\t%d lines already read" % lineCount)
 	return (eTimeDict, tEdgeDict)
+
+def read_temporal_cum_edges(read_path, as_directed = True, sep = " ", readLineNum = 100000, enable_verbose = False, weightCol = None):
+	"""
+		Read the temporal edgelis, but treat them as a snapshot (timestamp, node1, node2, ...)
+
+		Parameters:
+		-----------
+			read_path: str, 
+				input file path
+			as_directed: bool, optional, (default = True)
+				If True, treat the logs as directed edges
+			sep: str, optional (default = " ")
+				field seperator
+			readLineNum: int, optional, (default = 100000)
+				number of lines to read each time
+			enable_verbose: bool, optiona, (default = False)
+				If True, show the verbose in command line
+			weightCol: int, optional, (default = Node)
+				the index of weight value, the 0 present the 1st column.
+		Returns:
+		--------
+			edgeWeight, a dictionary of weighted values keyed with edges
+	"""
+	from collections import Counter
+	with open(read_path, "r") as F:
+		if enable_verbose:
+			print ("\tstart reading file")
+		lineCount = 0
+		edgeWeight = Counter()
+		while True:
+			lines = F.readlines(readLineNum)
+			if not lines:
+				break
+			for line in lines:
+				lineCount += 1
+				if (lineCount % readLineNum) == 0 and enable_verbose:
+					print ("\t\t%d lines already read" % lineCount)
+				readIn_variables = line.strip().split(sep)
+				if len(readIn_variables) >= 3:
+					timestamp, sNode, rNode = readIn_variables[:3]
+					sNode, rNode = int(sNode), int(rNode)
+					pairs = (sNode, rNode)
+					if not as_directed:
+						pairs = tuple(sorted(list(pairs)))
+				weight = int(readIn_variables[weightCol]) if weightCol and type(weightCol) is int else 1
+				edgeWeight[pairs] += weight
+		if enable_verbose:
+			print ("\t\t%d lines already read" % lineCount)
+		return(dict(edgeWeight))
 
 def read_node_attrs(read_path, fields = list(), sep = " ", readLineNum = 100000, enable_verbose = False, enable_header = False):
 	"""
@@ -300,7 +350,7 @@ def main(argv):
 	"""readling the logs, and save it in pickle format"""
 	try:
 		#opts, args = getopt.getopt(argv, "hi:m:f:S:o:s:xN:d:vw:", ["help"])
-		opts, args = getopt.getopt(argv, "hi:uF:o:s:xd:w:S:n:f:N:v", ["help"])
+		opts, args = getopt.getopt(argv, "hi:uF:o:as:xd:w:S:m:f:N:v", ["help"])
 	except getopt.GetoptError:
 		print ("The given argv incorrect")
 
@@ -313,6 +363,7 @@ def main(argv):
 	inputStatusFile = None
 	inputFriendshipFile = None
 	outputGPickleFile = None
+	asStatic = False
 	outputGSeriesPickleFile = None
 	asDirected = True
 	isMerged = False
@@ -332,6 +383,7 @@ def main(argv):
 		print ("-u : [ optional ], read files as undirected")
 		print ("-F ...: [ optional ] timestamp format, default = '%Y%m%d'")
 		print ("-o ...: output path for graph")
+		print ("-O ...: output path for static graph")
 		print ("-s ...: output path for temporal graph series")
 		print ("\t-x : [ optional, only works if -s given ], disable compact save format for list of temporal series graphs")
 		print ("\t-d 7,14,1000: [ requiered if -s given ], length of lifespan (in days) of temporal graph series. can handle multiple inputs seprated by ','")
@@ -357,6 +409,8 @@ def main(argv):
 			inputFriendshipFile = arg
 		elif opt in ("-o"):
 			outputGPickleFile = arg
+		elif opt in ("-a"):
+			asStatic = True
 		elif opt in ("-s"):
 			outputGSeriesPickleFile = arg
 		elif opt in ("-x"):
@@ -395,18 +449,21 @@ def main(argv):
 	timeLoadStart = time.time()
 
 	# readFile
-	eDict, tDict = read_temporal_edges(read_path = inputChatFile, timestamp_format = timestampFormat, as_directed = asDirected, enable_verbose = enableVerbose)
+	if asStatic:
+		eDict = read_temporal_cum_edges(read_path = inputChatFile, as_directed = asDirected, enable_verbose = enableVerbose, weightCol = 4)
+	else:
+		eDict, tDict = read_temporal_edges(read_path = inputChatFile, timestamp_format = timestampFormat, as_directed = asDirected, enable_verbose = enableVerbose)
 
 	# readFile: status
 	attrsDict = None
-	if inputStatusFile is not None and exists(inputStatusFile):
+	if inputStatusFile and exists(inputStatusFile):
 		importStatus = True
 		if enableVerbose: print ('\t\tadditional status node attributes are added')
 		attrsDict = read_node_attrs(read_path = inputStatusFile, fields = ['account', 'gender', 'race'], enable_verbose = enableVerbose)
 
 	# readFile: membership
 	mDict = None
-	if inputMemberFile is not None and exists(inputMemberFile):
+	if inputMemberFile and exists(inputMemberFile):
 		importMember = True
 		if enableVerbose: print ('\t\tadditional membership node attributes are added')
 		mDict = read_node_attrSet(read_path = inputMemberFile, node_col = 3, attr_col = 2, enable_verbose = enableVerbose)
@@ -467,7 +524,7 @@ def main(argv):
 		print 
 
 	# saveSeriesFile [ Temporal Graph Series] =============
-	if outputGSeriesPickleFile:
+	if outputGSeriesPickleFile and not asStatic:
 		gSeriesSaveDir = dirname(outputGSeriesPickleFile)
 		if gSeriesSaveDir and not exists(gSeriesSaveDir):
 			makedirs(gSeriesSaveDir)
@@ -536,7 +593,10 @@ def main(argv):
 			print ("\t[%d-day ShiftTime] %.2f sec\n" % (shiftSpan, timeShiftEnd - timeShiftStart))
 
 	timeTotalEnd = time.time()
-	del eDict, tDict
+	if asStatic:
+		del eDict
+	else:
+		del eDict, tDict
 	print ("\t--")
 	print ("\t[TotalTime] %.2f mins\n" % ((timeTotalEnd - timeTotalStart) / 60))
 

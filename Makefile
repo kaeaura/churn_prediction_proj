@@ -46,8 +46,8 @@ REALMS = alice
 #REALMS = wolf
 #CHANNELS = tell say party family 
 CHANNELS = family tell
-LIFESPANS = 1 500
-LIFESPANSS = 1,500
+LIFESPANS = 1 7 14 28 500
+LIFESPANSS = 1,7,14,28,500
 STEPWIDTH = 1
 #LIFESPANS = 500
 #LIFESPANSS = 500
@@ -246,6 +246,7 @@ to_graph: analyzer/toGraph.py
 	for REALM in ${REALMS}; do \
 		echo "fileToPickle-stage: $${REALM}"; \
 		EDGES=$${REALM}_tell.masked.$${UNIT} ; \
+		TRADES=$${REALM}_trade.masked.$${UNIT} ; \
 		MEMBERS=$${REALM}_family.masked.$${UNIT} ; \
 		FRIENDS=$${REALM}_friend.masked; \
 		STATUS=$${REALM}_char; \
@@ -255,6 +256,7 @@ to_graph: analyzer/toGraph.py
 		ARG_D="-d ${LIFESPANSS}" ; \
 		ARG_W="-w ${STEPWIDTH}" ; \
 		test -d $${DEST_PATH} || mkdir -p $${DEST_PATH} ; \
+		test -f $${UNIT_PATH}/$${TRADES} && ARG_T="
 		test -f $${UNIT_PATH}/$${MEMBERS} && ARG_M="-m $${UNIT_PATH}/$${MEMBERS}" || ARG_M="" ; \
 		test -f $${PARSED_PATH}/$${STATUS} && ARG_S="-S $${PARSED_PATH}/$${STATUS}" || ARG_S="";\
 		test -f $${PARSED_PATH}/$${FRIENDS} && ARG_F="-f $${PARSED_PATH}/$${FRIENDS}" || ARG_F=""; \
