@@ -5,7 +5,6 @@
 
 from __future__ import print_function
 import re
-#import os
 import sys
 import time
 import getopt
@@ -89,7 +88,7 @@ class EdgeSeries(defaultdict):
 		return(g)
 
 
-def read_temporal_edges(read_path, as_directed = True, sep = " ", timestamp_format = "%Y%m%d", readLineNum = 100000, enable_verbose = False):
+def read_temporal_edges(read_path, as_directed = True, sep = " ", timestamp_format = "%Y%m%d", readLineNum = 100000, enable_verbose = False, collapse = False, weightCol = None):
 	"""
 		Read the temporal edgelist with line format (time, node1, node2) 
 
@@ -106,9 +105,13 @@ def read_temporal_edges(read_path, as_directed = True, sep = " ", timestamp_form
 				number of lines to read each time
 			enable_verbose: bool, optiona, (default = False)
 				If True, show the verbose in command line
+			collapse: bool, optional (defualt = False)
+				If True, the time information of edges are removed. That means the this function reutnrs edge dict instead of eTimeDict.
+			weightCol: int, optional, (default = None)
+				the index of weight value, the 0 present the 1st column.
 		Returns:
 		--------
-			eTimeDict, a dictionary of timestamps keyed with edges
+			eTimeDict, a dictionary of timestamps keyed with edges / edgeDict, a dictionary of weights keyed with edges
 			tEdgeDict, a dictionary of edges keyed with timestamps
 	""" 
 	with open(read_path, "r") as F:
@@ -117,7 +120,11 @@ def read_temporal_edges(read_path, as_directed = True, sep = " ", timestamp_form
 			print ("\t------------------")
 			print ("\tstart reading file")
 		lineCount = 0
-		eTimeDict = defaultdict(set)
+		if collapse:
+			from collections import Counter
+			eTimeDict = Counter()
+		else:
+			eTimeDict = defaultdict(set)
 		tEdgeDict = defaultdict(set)
 		# read file
 		while True:
@@ -136,13 +143,17 @@ def read_temporal_edges(read_path, as_directed = True, sep = " ", timestamp_form
 					pairs = (sNode, rNode)
 					if not as_directed: 
 						pairs = tuple(sorted(list(pairs)))
-					eTimeDict[pairs].add(t)
+					weight = int(readIn_variables[weightCol]) if type(weightCol) is int else 1
 					tEdgeDict[t].add(pairs)
+					if collapse:
+						eTimeDict[pairs] += weight
+					else:
+						eTimeDict[pairs].add(t)
 		if enable_verbose:
 			print ("\t\t%d lines already read" % lineCount)
 	return (eTimeDict, tEdgeDict)
 
-def read_temporal_cum_edges(read_path, as_directed = True, sep = " ", readLineNum = 100000, enable_verbose = False, weightCol = None):
+def read_temporal_cum_edges(read_path, as_directed = True, sep = " ", timestamp_format = "%Y%m%d", readLineNum = 100000, enable_verbose = False, weightCol = None):
 	"""
 		Read the temporal edgelis, but treat them as a snapshot (timestamp, node1, node2, ...)
 
@@ -154,6 +165,7 @@ def read_temporal_cum_edges(read_path, as_directed = True, sep = " ", readLineNu
 				If True, treat the logs as directed edges
 			sep: str, optional (default = " ")
 				field seperator
+			timestamp_format: str, optional (default = '%Y%m%d')
 			readLineNum: int, optional, (default = 100000)
 				number of lines to read each time
 			enable_verbose: bool, optiona, (default = False)
@@ -170,6 +182,7 @@ def read_temporal_cum_edges(read_path, as_directed = True, sep = " ", readLineNu
 			print ("\tstart reading file")
 		lineCount = 0
 		edgeWeight = Counter()
+		durationSet = set()
 		while True:
 			lines = F.readlines(readLineNum)
 			if not lines:
@@ -182,6 +195,7 @@ def read_temporal_cum_edges(read_path, as_directed = True, sep = " ", readLineNu
 				if len(readIn_variables) >= 3:
 					timestamp, sNode, rNode = readIn_variables[:3]
 					sNode, rNode = int(sNode), int(rNode)
+					durationSet.add(datetime.datetime.strptime(timestamp, timestamp_format))
 					pairs = (sNode, rNode)
 					if not as_directed:
 						pairs = tuple(sorted(list(pairs)))
@@ -189,7 +203,7 @@ def read_temporal_cum_edges(read_path, as_directed = True, sep = " ", readLineNu
 				edgeWeight[pairs] += weight
 		if enable_verbose:
 			print ("\t\t%d lines already read" % lineCount)
-		return(dict(edgeWeight))
+		return(dict(edgeWeight), { min(durationSet) : 0, max(durationSet) : 0 })
 
 def read_node_attrs(read_path, fields = list(), sep = " ", readLineNum = 100000, enable_verbose = False, enable_header = False):
 	"""
@@ -339,8 +353,8 @@ def _itemToWeight(item):
 	(i, j), w = item
 	return((i, j, w))
 
-def _toGraph(eTimeDict, as_directed = True, weight = "weight"):
-	G = nx.DiGraph() if as_directed else nx.Graph()
+def _toGraph(eTimeDict, as_directed = True, weight = "weight", name = None):
+	G = nx.DiGraph(name = name) if as_directed else nx.Graph(name = name)
 	if len(eTimeDict.keys()):
 		G.add_weighted_edges_from(map(lambda x: _itemToWeight(x), eTimeDict.items()))
 		G.remove_edges_from(G.selfloop_edges())
@@ -383,7 +397,7 @@ def main(argv):
 		print ("-u : [ optional ], read files as undirected")
 		print ("-F ...: [ optional ] timestamp format, default = '%Y%m%d'")
 		print ("-o ...: output path for graph")
-		print ("-O ...: output path for static graph")
+		print ("-a : output as static graph")
 		print ("-s ...: output path for temporal graph series")
 		print ("\t-x : [ optional, only works if -s given ], disable compact save format for list of temporal series graphs")
 		print ("\t-d 7,14,1000: [ requiered if -s given ], length of lifespan (in days) of temporal graph series. can handle multiple inputs seprated by ','")
@@ -449,10 +463,12 @@ def main(argv):
 	timeLoadStart = time.time()
 
 	# readFile
-	if asStatic:
-		eDict = read_temporal_cum_edges(read_path = inputChatFile, as_directed = asDirected, enable_verbose = enableVerbose, weightCol = 4)
-	else:
-		eDict, tDict = read_temporal_edges(read_path = inputChatFile, timestamp_format = timestampFormat, as_directed = asDirected, enable_verbose = enableVerbose)
+#	if asStatic:
+#		eDict, tDict = read_temporal_cum_edges(read_path = inputChatFile, as_directed = asDirected, enable_verbose = enableVerbose, weightCol = 4)
+#	else:
+#		eDict, tDict = read_temporal_edges(read_path = inputChatFile, timestamp_format = timestampFormat, as_directed = asDirected, enable_verbose = enableVerbose)
+
+	eDict, tDict = read_temporal_edges(read_path = inputChatFile, timestamp_format = timestampFormat, as_directed = asDirected, enable_verbose = enableVerbose, collapse = asStatic, weightCol = 4)
 
 	# readFile: status
 	attrsDict = None
@@ -479,7 +495,7 @@ def main(argv):
 
 	# buildGraph
 	timeBuildStart = time.time()
-	G = _toGraph(eDict, as_directed = asDirected)
+	G = _toGraph(eDict, as_directed = asDirected, name = '--'.join([ min(tDict.keys()).strftime('%Y-%m-%d'), max(tDict.keys()).strftime('%Y-%m-%d') ]))
 	nodes = set(G.nodes())
 
 	# attach node attributes: family, account, gender, ...
@@ -524,7 +540,7 @@ def main(argv):
 		print 
 
 	# saveSeriesFile [ Temporal Graph Series] =============
-	if outputGSeriesPickleFile and not asStatic:
+	if outputGSeriesPickleFile:
 		gSeriesSaveDir = dirname(outputGSeriesPickleFile)
 		if gSeriesSaveDir and not exists(gSeriesSaveDir):
 			makedirs(gSeriesSaveDir)
@@ -593,10 +609,7 @@ def main(argv):
 			print ("\t[%d-day ShiftTime] %.2f sec\n" % (shiftSpan, timeShiftEnd - timeShiftStart))
 
 	timeTotalEnd = time.time()
-	if asStatic:
-		del eDict
-	else:
-		del eDict, tDict
+	del eDict, tDict
 	print ("\t--")
 	print ("\t[TotalTime] %.2f mins\n" % ((timeTotalEnd - timeTotalStart) / 60))
 

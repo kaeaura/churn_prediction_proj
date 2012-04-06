@@ -38,7 +38,7 @@ BEGIN{
 	min = tupleArray[2]
 	sec = tupleArray[3]
 
-	newTimeStamp = sprintf("%s%s%s%s%s%s", year, month, day, hour, min, sec)
+	newTimeStamp = sprintf("%4d%02d%02d%02d%02d%02d", year, month, day, hour, min, sec)
 
 	if (senderMoney > 0)
 		print newTimeStamp, senderID, receiverID, senderMoney

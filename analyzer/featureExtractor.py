@@ -6,8 +6,8 @@ import re
 import sys
 import time
 import getopt
-import networkx as nx
 import cPickle
+import networkx as nx
 from db import LiteDB
 from scipy import average, median, array, log10, sqrt
 from scipy.optimize import leastsq
@@ -178,21 +178,24 @@ def reciprocity(g, return_cor = True):
 		'Patterns of link reciprocity in directed networks,' 
 		arXiv.org, vol. cond-mat.dis-nn. 22-Apr.-2004.
 	"""
-	assert(g.is_directed())
-	# first, remove the self loops and duplicated edges
-	# in matrix aspect, remove the diagonal elements and make the element are no greater than 1
-	n = g.order()
-	L = set(g.edges()).difference(set(g.selfloop_edges()))
-	# sort the directional edges as undirectional edges
-	L_unorder = map(lambda x: '-'.join(map(str, list(set(x)))), L)
-	L_cnt = Counter()
-	for l in iter(L_unorder):
-		L_cnt[l] += 1
-	L_r = filter(lambda x: L_cnt[x] > 1, L_cnt.iterkeys())
-	r = float(len(L_r)) / len(L_unorder)
-	a = float(len(L)) / (n * (n - 1))
-	rho = ((r - a) / (1 - a))
-	return(rho if return_cor else r)
+	if g:
+		assert(g.is_directed())
+		# first, remove the self loops and duplicated edges
+		# in matrix aspect, remove the diagonal elements and make the element are no greater than 1
+		n = g.order()
+		L = set(g.edges()).difference(set(g.selfloop_edges()))
+		# sort the directional edges as undirectional edges
+		L_unorder = map(lambda x: '-'.join(map(str, list(set(x)))), L)
+		L_cnt = Counter()
+		for l in iter(L_unorder):
+			L_cnt[l] += 1
+		L_r = filter(lambda x: L_cnt[x] > 1, L_cnt.iterkeys())
+		r = 2 * float(len(L_r)) / len(L_unorder)
+		a = float(len(L)) / (n * (n - 1))
+		rho = ((r - a) / (1 - a))
+		return(rho if return_cor else r)
+	else:
+		return(None)
 
 def powerlaw_fit(xdata, ydata, err = 0.1):
 	yerr = err * ydata
@@ -336,14 +339,42 @@ def get_degree_correlation(g, method = 'average', mode = 'both'):
 	return(xdata, ydata)
 
 def easy_pack(graph, **kwargs):
-	"""Packing the topological properties of given graph"""
+	"""
+		Packing the topological properties of given graph.
+
+		Parameters:
+		-----------
+			graph: NetworkX Graph, NetworkX DiGraph,
+			arbitary args: **kwargs,
+				set prop_name = prop_value
+		Returns:
+		--------
+			a dictionary of topological property values keyed with property names
+	"""
 	t = dict()
 	for k in kwargs:
 		t.__setitem__(k, kwargs[k])
 	# resolve the features
 	t.__setitem__('order', graph.order())
 	t.__setitem__('size', graph.size())
-	t.__setitem__('degree', average_degree(graph))
+#	t.__setitem__('degree', average_degree(graph))
+#	t.__setitem__('asr', nx.degree_assortativity_coefficient(graph))
+	t.__setitem__('recp', reciprocity(graph, return_cor = False))
+	t.__setitem__('rho', reciprocity(graph, return_cor = True))
+	t.__setitem__('reinf', reinforce(graph))
+#	if graph.is_directed():
+#		t.__setitem__('degcor', degcor(graph))
+#		# in_degree
+#		xdata, ydata = get_degree_distribution(graph, mode = 'in')
+#		t.__setitem__('inDegDistr_x', xdata)
+#		t.__setitem__('inDegDistr_y', ydata)
+#		t.__setitem__('inDegDistr_fit', powerlaw_fit(xdata, ydata))
+#
+#		# out_degree
+#		xdata, ydata = get_degree_distribution(graph, mode = 'out')
+#		t.__setitem__('outDegDistr_x', xdata)
+#		t.__setitem__('outDegDistr_y', ydata)
+#		t.__setitem__('outDegDistr_fit', powerlaw_fit(xdata, ydata))
 	return(t)
 
 def pack(graph, **kwargs):
@@ -655,9 +686,10 @@ def main(argv):
 			fillinName = autoName if dataName is None else dataName
 			graph_key = "_".join([fillinName, str(graph), 'd' if graph.is_directed() else 'u'])
 			if db.__contains__(graph_key) and not forceSave:
-				print ("warnning! lite database already exist such data (%s)" % graph_key)
-				print ("skip")
-				next
+				if enable_easyPack:
+					db[graph_key].update(easy_pack(graph, **metalabels))
+				else:
+					db[graph_key].update(pack(graph, **metalabels))
 			else:
 				if enable_easyPack:
 					db.__setitem__(graph_key, easy_pack(graph, **metalabels))

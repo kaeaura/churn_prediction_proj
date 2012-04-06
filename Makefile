@@ -242,11 +242,11 @@ daily_compact: manipulators/log_compactor.awk manipulators/log_chopper.awk
 
 # build the graph
 to_graph: analyzer/toGraph.py
-	@UNIT="daily"; \
+	UNIT="daily"; \
 	for REALM in ${REALMS}; do \
 		echo "fileToPickle-stage: $${REALM}"; \
 		EDGES=$${REALM}_tell.masked.$${UNIT} ; \
-		TRADES=$${REALM}_trade.masked.$${UNIT} ; \
+		TRADES=$${REALM}_moneyFlow.masked.$${UNIT} ; \
 		MEMBERS=$${REALM}_family.masked.$${UNIT} ; \
 		FRIENDS=$${REALM}_friend.masked; \
 		STATUS=$${REALM}_char; \
@@ -256,15 +256,21 @@ to_graph: analyzer/toGraph.py
 		ARG_D="-d ${LIFESPANSS}" ; \
 		ARG_W="-w ${STEPWIDTH}" ; \
 		test -d $${DEST_PATH} || mkdir -p $${DEST_PATH} ; \
-		test -f $${UNIT_PATH}/$${TRADES} && ARG_T="
 		test -f $${UNIT_PATH}/$${MEMBERS} && ARG_M="-m $${UNIT_PATH}/$${MEMBERS}" || ARG_M="" ; \
 		test -f $${PARSED_PATH}/$${STATUS} && ARG_S="-S $${PARSED_PATH}/$${STATUS}" || ARG_S="";\
 		test -f $${PARSED_PATH}/$${FRIENDS} && ARG_F="-f $${PARSED_PATH}/$${FRIENDS}" || ARG_F=""; \
 		test -f $${UNIT_PATH}/$${EDGES} \
+			&& echo "python analyzer/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_D} $${ARG_W} -a -o $${DEST_PATH}/$${REALM}_chat_static_d.gpickle" \
+			&& time python analyzer/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_D} $${ARG_W} -a -o $${DEST_PATH}/$${REALM}_chat_static_d.gpickle \
 			&& echo "python analyzer/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_F} $${ARG_D} $${ARG_W} -o $${DEST_PATH}/$${REALM}_d.gpickle -s $${DEST_PATH}/temporal/$${REALM}_d.cpickle" \
-			&& python analyzer/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_F} $${ARG_D} $${ARG_W} -o $${DEST_PATH}/$${REALM}_d.gpickle -s $${DEST_PATH}/temporal/$${REALM}_d.cpickle \
+			&& time python analyzer/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_F} $${ARG_D} $${ARG_W} -o $${DEST_PATH}/$${REALM}_d.gpickle -s $${DEST_PATH}/temporal/$${REALM}_d.cpickle \
 			|| echo "$${UNIT_PATH}/$${EDGES}, $${UNIT_PATH}/$${MEMBERS}, or $${PARSED_PATH}/$${FRIENDS} does not exist" ; \
-	done;
+		test -f $${UNIT_PATH}/$${TRADES} \
+			&& echo "python analyzer/toGraph.py -i $${UNIT_PATH}/$${TRADES} $${ARG_M} $${ARG_S} $${ARG_D} $${ARG_W} -a -o $${DEST_PATH}/$${REALM}_trade_static_d.gpickle" \
+			&& time python analyzer/toGraph.py -i $${UNIT_PATH}/$${TRADES} $${ARG_M} $${ARG_S} $${ARG_D} $${ARG_W} -a -o $${DEST_PATH}/$${REALM}_trade_static_d.gpickle \
+			&& echo "python analyzer/toGraph.py -i $${UNIT_PATH}/$${TRADES} $${ARG_M} $${ARG_S} $${ARG_F} $${ARG_D} $${ARG_W} -o $${DEST_PATH}/$${REALM}_d.gpickle -s $${DEST_PATH}/temporal/$${REALM}_d.cpickle" \
+			&& time python analyzer/toGraph.py -i $${UNIT_PATH}/$${TRADES} $${ARG_M} $${ARG_S} $${ARG_F} $${ARG_D} $${ARG_W} -o $${DEST_PATH}/$${REALM}_d.gpickle -s $${DEST_PATH}/temporal/$${REALM}_d.cpickle \
+	done; 
 
 evo_report: analyzer/evolution.py
 	@for REALM in ${REALMS}; do \

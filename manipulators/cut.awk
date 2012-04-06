@@ -1,16 +1,16 @@
 # Jing-Kai Lou (kaeaura@gamil.com)
 
 BEGIN{
-	if (cutThr == "")
-		cutThr = 0
+	if (cutMin == "")
+		cutMin = 0
+	if (cutMax == "")
+		cutMax = 9999999999
 	if (cutIndex == "")
 		cutIndex = 1
 }
 
 NF >= cutIndex{
 	cutItem = $cutIndex
-	if (cutItem >= cutThr)
+	if (cutItem >= cutMin && cutItem <= cutMax)
 		print $0
-	else
-		next
 }

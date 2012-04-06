@@ -113,7 +113,7 @@ def main(argv):
 	if len(inputDirs):
 		for inputDir in inputDirs:
 			filelist = filter(lambda x: pattern.match(x) is not None, os.listdir(inputDir))
-			inputFiles.extent(map(lambda x: os.path.join(inputDir, x), filelist))
+			inputFiles.extend(map(lambda x: os.path.join(inputDir, x), filelist))
 	
 	for inputFile in itertools.ifilter(lambda x: os.path.exists(x), inputFiles):
 		db.load(inputFile)
