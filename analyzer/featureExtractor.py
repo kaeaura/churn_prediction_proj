@@ -338,6 +338,63 @@ def get_degree_correlation(g, method = 'average', mode = 'both'):
 	ydata = array(ydata)
 	return(xdata, ydata)
 
+def effect_diameter(graph):
+	"""
+		Get the diamter of the largest (weakly) connected component
+
+		Parameters:
+		-----------
+			graph: Networkx Graph, Networkx DiGraph,
+		Returns:
+		--------
+			int, the diameter of the largested connected component
+	"""
+	if graph.is_directed():
+		graph = to_undirected(graph)
+	return(nx.diameter(nx.connected_component_subgraphs(graph)[0]))
+
+def hop_counts(graph, weight = None, cutoff = None):
+	"""
+		Get the hop plot
+
+		Parameters:
+		-----------
+			graph: Networkx Graph, NetworkX DiGraph,
+			weight: str, optional
+				Edge data keyed corresponding to the edge weight
+			cutoff: integer or float, optional
+				Depth to stop search. Only paths of length <= cutoff are counted
+		Returns:
+		--------
+			a dictionary, keyed by hop count, of number of paths with specific hops
+	"""
+	from collections import Counter
+	cnt = Counter()
+	plDict = nx.all_pairs_dijkstra_path_length(graph, weight = weight, cutoff = cutoff)
+	for p in plDict.itervalues():
+		for d in p.itervalues():
+			cnt[d] += 1
+	return(dict(cnt))
+
+def dist_pack(graph, **kwargs):
+	"""
+		Packing the distant measurement properties of given graph
+
+		Parameters:
+		-----------
+			graph: Networkx Graph, NetworkX Digraph,
+			arbitary args: **kwargs,
+		Returns:
+		--------
+			a dictionary, keyed by property names, of property values.
+	"""
+	t = dict()
+	for k in kwargs:
+		t.__setitem__(k, kwargs[k])
+	t.__setitem__('diameter', effect_diameter(graph))
+	t.__setitem__('hop_counts', hop_counts(graph))
+	return(t)
+
 def easy_pack(graph, **kwargs):
 	"""
 		Packing the topological properties of given graph.
@@ -550,7 +607,6 @@ def main(argv):
 	outputFile = None
 	dataName = None
 	enableVerbose = False
-	IsHete = False
 	heteNames = None
 	heteNameSep = ","
 	enablePlot = False
@@ -560,31 +616,35 @@ def main(argv):
 	asDirected = False
 	enable_appendant = False
 	enable_easyPack = False
+	packType = 'easy'
 	ofs = ","
 
 	def usage():
-		print
 		print ("----------------------------------------")
-		print ("read the gpickles to pack as db file")
+		print ("read the graphs (in gpickle, edgelist, or cpickle format) and ")
+		print ("extract the graph topological features, and then pack features as a .db file")
 		print
 		print ("-h, --help: print this usage")
-		print ("-i: inputFile (gpickle)")
-		print ("-I: inputDir (directory)")
-		print ("-e: inputFile type = edgelist")
-		print ("-p: inputFile type = cpickle")
-		print ("-o: outputFile")
-		print ("-r: dataName")
-		print ("-v: verbose")
-		print ("-M: Is Hete. data")
-		print ("-N: Hete. names")
-		print ("-c: meta data for graph")
-		print ("-a: append previous result")
-		print ("-f: force save")
-		print ("-E: easy pack")
-		print ("-d: as directed (only valid while reading edgelist)")
+		print ("-i ...: read inputFile (as a gpickle file)")
+		print ("-I ...: read inputDir (directory)")
+		print ("control file type:")
+		print ("\t(default: searching gpickle files)")
+		print ("\t-e: set inputFile type as edgelist")
+		print ("\t-p: set inputFile type as cpickle (for the temporal series file)")
+		print ("-d: forced the input graph as directed (only valid while reading edgelist files)")
+		print ("-o: outputFile (default *.db file)")
+		print ("-r: dataName (saved as the db key)")
+		print ("-v: enable verbose")
+		print ("-N [typeName1,typeName2,...]: If input graph contains different edge type, split them into subgraphs")
+		print ("-c [attribute]=[value]: dynamically add additioanl attribute to the output db file")
+		print ("-a: if output file already existed, then append previous result. If detecting identical keys, then update the values")
+		print ("  : The update means: older attributes will be update, new attributes will be create")
+		print ("-f: if output file already existed, then replace previous result")
+		print ("-T: pack type [easy, noraml, dist] ")
+		print ("----------------------------------------")
 
 	try:
-		opts, args = getopt.getopt(argv, "hi:I:epo:r:vMN:c:afEd", ["help"])
+		opts, args = getopt.getopt(argv, "hi:I:epo:r:vMN:c:afT:d", ["help"])
 	except getopt.GetoptError, err:
 		print ("The given argv incorrect")
 		usage()
@@ -609,8 +669,6 @@ def main(argv):
 			dataName = arg
 		elif opt in ("-v"):
 			enableVerbose = True
-		elif opt in ("-M"):
-			IsHete = True
 		elif opt in ("-N"):
 			heteNames = arg.split(heteNameSep)
 		elif opt in ("-c"):
@@ -620,8 +678,8 @@ def main(argv):
 			enable_appendant = True
 		elif opt in ("-f"):
 			forceSave = True
-		elif opt in ("-E"):
-			enable_easyPack = True
+		elif opt in ("-T"):
+			packType = arg
 		elif opt in ("-d"):
 			asDirected = True
 
@@ -639,7 +697,6 @@ def main(argv):
 		print ("outputFile: %s" % outputFile)
 		print ("dataName: %s" % dataName)
 		print ("enableVerbose: %s" % enableVerbose)
-		print ("IsHete: %s" % IsHete)
 		print ("heteNames: %s" % heteNames)
 		print ("asDirected: %s" % asDirected)
 
@@ -667,7 +724,7 @@ def main(argv):
 
 		graphs = list()
 
-		if IsHete:
+		if heteNames:
 			for gg in g:
 				net = DiNet(gg) if g.is_directed() else Net(gg)
 				graphs.extend(net.extract_multiple_edges(*heteNames))
@@ -681,19 +738,28 @@ def main(argv):
 				sys.exit()
 
 		for graph in iter(graphs):
-			#autoName = re.sub(".gpickle", "", os.path.basename(f)) if inputIsPickle else re.sub(".txt", "", os.path.basename(f))
 			autoName = re.sub(".%s" % inputFileType, "", os.path.basename(f)) 
 			fillinName = autoName if dataName is None else dataName
 			graph_key = "_".join([fillinName, str(graph), 'd' if graph.is_directed() else 'u'])
 			if db.__contains__(graph_key) and not forceSave:
-				if enable_easyPack:
+				if packType == 'easy':
+					print ('updating in easy-pack mode')
 					db[graph_key].update(easy_pack(graph, **metalabels))
+				elif packType == 'dist':
+					print ('updating in dist-pack mode')
+					db[graph_key].update(dist_pack(graph, **metalabels))
 				else:
+					print ('updating in normal-pack mode')
 					db[graph_key].update(pack(graph, **metalabels))
 			else:
-				if enable_easyPack:
+				if packType == 'easy':
+					print ("writing in easy-pack mode")
 					db.__setitem__(graph_key, easy_pack(graph, **metalabels))
+				elif packType == 'dist':
+					print ("writing in dist-pack mode")
+					db.__setitem__(graph_key, dist_pack(graph, **metalabels))
 				else:
+					print ("writing in normal-pack mode")
 					db.__setitem__(graph_key, pack(graph, **metalabels))
 			
 	db.save(outputFile)

@@ -32,7 +32,7 @@ GRAPHS_DIR = ${EXP_RESUILT_DIR}/graphs
 
 # settings
 #REALMS = alice mermaid 
-REALMS = alice
+REALMS = doll
 # (@Baal)
 #REALMS = mermaid plurk anderson doll (@baal)
 #REALMS = mermaid 
@@ -46,8 +46,8 @@ REALMS = alice
 #REALMS = wolf
 #CHANNELS = tell say party family 
 CHANNELS = family tell
-LIFESPANS = 1 7 14 28 500
-LIFESPANSS = 1,7,14,28,500
+LIFESPANS = 7 28 500
+LIFESPANSS = 7,28,500
 STEPWIDTH = 1
 #LIFESPANS = 500
 #LIFESPANSS = 500
@@ -242,7 +242,7 @@ daily_compact: manipulators/log_compactor.awk manipulators/log_chopper.awk
 
 # build the graph
 to_graph: analyzer/toGraph.py
-	UNIT="daily"; \
+	@UNIT="daily"; \
 	for REALM in ${REALMS}; do \
 		echo "fileToPickle-stage: $${REALM}"; \
 		EDGES=$${REALM}_tell.masked.$${UNIT} ; \
@@ -260,35 +260,22 @@ to_graph: analyzer/toGraph.py
 		test -f $${PARSED_PATH}/$${STATUS} && ARG_S="-S $${PARSED_PATH}/$${STATUS}" || ARG_S="";\
 		test -f $${PARSED_PATH}/$${FRIENDS} && ARG_F="-f $${PARSED_PATH}/$${FRIENDS}" || ARG_F=""; \
 		test -f $${UNIT_PATH}/$${EDGES} \
-			&& echo "python analyzer/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_D} $${ARG_W} -a -o $${DEST_PATH}/$${REALM}_chat_static_d.gpickle" \
-			&& time python analyzer/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_D} $${ARG_W} -a -o $${DEST_PATH}/$${REALM}_chat_static_d.gpickle \
-			&& echo "python analyzer/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_F} $${ARG_D} $${ARG_W} -o $${DEST_PATH}/$${REALM}_d.gpickle -s $${DEST_PATH}/temporal/$${REALM}_d.cpickle" \
-			&& time python analyzer/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_F} $${ARG_D} $${ARG_W} -o $${DEST_PATH}/$${REALM}_d.gpickle -s $${DEST_PATH}/temporal/$${REALM}_d.cpickle \
-			|| echo "$${UNIT_PATH}/$${EDGES}, $${UNIT_PATH}/$${MEMBERS}, or $${PARSED_PATH}/$${FRIENDS} does not exist" ; \
+			&& echo "python analyzer/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_D} $${ARG_W} -a -o $${DEST_PATH}/$${REALM}_chat_static_dir.gpickle -s $${DEST_PATH}/$${REALM}_chat_series/$${REALM}_chat_dynamic_dir.cpickle" \
+			&& python analyzer/toGraph.py -i $${UNIT_PATH}/$${EDGES} $${ARG_M} $${ARG_S} $${ARG_D} $${ARG_W} -a -o $${DEST_PATH}/$${REALM}_chat_static_dir.gpickle -s $${DEST_PATH}/$${REALM}_chat_series/$${REALM}_chat_dynamic_dir.cpickle \
+			|| echo "File $${UNIT_PATH}/$${EDGES} does not exist" ; \
 		test -f $${UNIT_PATH}/$${TRADES} \
-			&& echo "python analyzer/toGraph.py -i $${UNIT_PATH}/$${TRADES} $${ARG_M} $${ARG_S} $${ARG_D} $${ARG_W} -a -o $${DEST_PATH}/$${REALM}_trade_static_d.gpickle" \
-			&& time python analyzer/toGraph.py -i $${UNIT_PATH}/$${TRADES} $${ARG_M} $${ARG_S} $${ARG_D} $${ARG_W} -a -o $${DEST_PATH}/$${REALM}_trade_static_d.gpickle \
-			&& echo "python analyzer/toGraph.py -i $${UNIT_PATH}/$${TRADES} $${ARG_M} $${ARG_S} $${ARG_F} $${ARG_D} $${ARG_W} -o $${DEST_PATH}/$${REALM}_d.gpickle -s $${DEST_PATH}/temporal/$${REALM}_d.cpickle" \
-			&& time python analyzer/toGraph.py -i $${UNIT_PATH}/$${TRADES} $${ARG_M} $${ARG_S} $${ARG_F} $${ARG_D} $${ARG_W} -o $${DEST_PATH}/$${REALM}_d.gpickle -s $${DEST_PATH}/temporal/$${REALM}_d.cpickle \
+			&& echo "python analyzer/toGraph.py -i $${UNIT_PATH}/$${TRADES} $${ARG_M} $${ARG_S} $${ARG_D} $${ARG_W} -a -o $${DEST_PATH}/$${REALM}_trade_static_dir.gpickle -s $${DEST_PATH}/$${REALM}_trade_series/$${REALM}_trade_dynamic_dir.cpickle" \
+			&& python analyzer/toGraph.py -i $${UNIT_PATH}/$${TRADES} $${ARG_M} $${ARG_S} $${ARG_D} $${ARG_W} -a -o $${DEST_PATH}/$${REALM}_trade_static_dir.gpickle -s $${DEST_PATH}/$${REALM}_trade_series/$${REALM}_trade_dynamic_dir.cpickle \
+			|| echo "File $${UNIT_PATH}/$${TRADES} does not exist" ; \
 	done; 
 
-evo_report: analyzer/evolution.py
-	@for REALM in ${REALMS}; do \
-		for LIFESPAN in ${LIFESPANS}; do \
-			echo "pcikleToTable-stage: $${REALM}"; \
-			INFOLDER=${ACT_COLLECTION_DIR}/graphs/temporal ; \
-			time python analyzer/evolution.py -I $${INFOLDER} -r $${REALM} -d $${LIFESPAN} -o ${REPORT_DIR}/$${REALM}_directed_$${LIFESPAN}d.csv ; \
-			time python analyzer/evolution.py -u -I $${INFOLDER} -r $${REALM} -d $${LIFESPAN} -o ${REPORT_DIR}/$${REALM}_undirected_$${LIFESPAN}d.csv ; \
-		done; \
-	done;
-
-top_report: analyzer/topology.py
+top_report: analyzer/featureExtractor.py
 	@EXE="analyzer/topology.py"; \
 	for REALM in ${REALMS}; do \
 		echo "GraphToFeature-stage: $${REALM};" ; \
 		echo "--"; \
 		for DIRECTION in "d" "u"; do \
-			GRAPH="${GRAPH_DIR}/$${REALM}_$${DIRECTION}.gpickle"; \
+			GRAPH="${GRAPHS_DIR}/$${REALM}_$${DIRECTION}.gpickle"; \
 			TABLE="${REPORT_DIR}/$${REALM}_$${DIRECTION}_topology.csv"; \
 			INPUT_ARG="-i $${GRAPH}"; \
 			OUTPUT_ARG="-o $${TABLE}"; \
@@ -300,6 +287,15 @@ top_report: analyzer/topology.py
 		done \
 	done
 
+evo_report: analyzer/evolution.py
+	@for REALM in ${REALMS}; do \
+		for LIFESPAN in ${LIFESPANS}; do \
+			echo "pcikleToTable-stage: $${REALM}"; \
+			INFOLDER=${ACT_COLLECTION_DIR}/graphs/temporal ; \
+			time python analyzer/evolution.py -I $${INFOLDER} -r $${REALM} -d $${LIFESPAN} -o ${REPORT_DIR}/$${REALM}_directed_$${LIFESPAN}d.csv ; \
+			time python analyzer/evolution.py -u -I $${INFOLDER} -r $${REALM} -d $${LIFESPAN} -o ${REPORT_DIR}/$${REALM}_undirected_$${LIFESPAN}d.csv ; \
+		done; \
+	done;
 # make the centrality tables
 temp_centrality: net_builder.py
 	@for REALM in ${REALMS}; do \

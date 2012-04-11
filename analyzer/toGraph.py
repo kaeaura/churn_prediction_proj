@@ -87,7 +87,6 @@ class EdgeSeries(defaultdict):
 		self.next(step = step)
 		return(g)
 
-
 def read_temporal_edges(read_path, as_directed = True, sep = " ", timestamp_format = "%Y%m%d", readLineNum = 100000, enable_verbose = False, collapse = False, weightCol = None):
 	"""
 		Read the temporal edgelist with line format (time, node1, node2) 
