@@ -353,27 +353,50 @@ def effect_diameter(graph):
 		graph = to_undirected(graph)
 	return(nx.diameter(nx.connected_component_subgraphs(graph)[0]))
 
-def hop_counts(graph, weight = None, cutoff = None):
+def hop_counts(graph, cutoff = None, samples = 100000):
 	"""
-		Get the hop plot
+		Calculating the length (in number of hops) with nodes in the largest connected component 
+		using dijkstra algorithm. The input graph will be automaically turned into an 
+		undirected simple graph without loops.
+
+		To reduce the computation complexity, sampling method is used by default. Can use the argument
+		'samples' to control the number of samples.
 
 		Parameters:
 		-----------
 			graph: Networkx Graph, NetworkX DiGraph,
-			weight: str, optional
-				Edge data keyed corresponding to the edge weight
 			cutoff: integer or float, optional
 				Depth to stop search. Only paths of length <= cutoff are counted
+			samples: int
+				The number of sampling node pairs in order 
+				If samples equals to 0, then all pairs of nodes will be included.
 		Returns:
 		--------
 			a dictionary, keyed by hop count, of number of paths with specific hops
 	"""
+	graph = to_undirected(graph)
 	from collections import Counter
 	cnt = Counter()
-	plDict = nx.all_pairs_dijkstra_path_length(graph, weight = weight, cutoff = cutoff)
-	for p in plDict.itervalues():
-		for d in p.itervalues():
-			cnt[d] += 1
+	if samples > 0:
+		def gen_pairs(p, n):
+			"""
+				generting the sampling node pairs.
+				duplicated pairs is possible, but self loop is impossible
+			"""
+			import random
+			random.seed()
+			pairs = [ random.sample(p, 2) for s in xrange(n) ]
+			return(pairs)
+		pairs = gen_pairs(graph.nodes(), samples)
+		pair_lens = map(lambda x: nx.dijkstra_path_length(graph, x[0], x[1]), pairs)
+		if cutoff: pair_lens = filter(lambda x: x <= cutoff, pair_lens)
+		for pl in iter(pair_lens):
+			cnt[pl] += 1
+	else:
+		plDict = nx.all_pairs_dijkstra_path_length(graph, cutoff = cutoff)
+		for p in plDict.itervalues():
+			for d in p.itervalues():
+				cnt[d] += 1
 	return(dict(cnt))
 
 def dist_pack(graph, **kwargs):
@@ -616,7 +639,7 @@ def main(argv):
 	asDirected = False
 	enable_appendant = False
 	enable_easyPack = False
-	packType = 'easy'
+	packType = 'normal'
 	ofs = ","
 
 	def usage():
