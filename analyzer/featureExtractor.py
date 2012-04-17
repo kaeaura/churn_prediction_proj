@@ -81,20 +81,25 @@ def degcor(g):
 		y.append(g.in_degree(n))
 	return(pearsonr(x, y))
 
-def to_undirected(g):
+def to_undirected(g, is_bi = False):
 	"""
 		Remove the selfloops and make it as undirected for a given graph.
 
 		Parameters:
 		-----------
 			g: NetworkX Graph, NetworkX DiGraph
+			is_bi: bool, (default = False)
+				If is_bi is true, then only bi-directional tie left. 
+				That means all single directional arc between nodes are removed
+
 		Returns:
 		-------
 			NetworkXGraph
 	"""
 	g.remove_edges_from(g.selfloop_edges())
+
 	return(nx.Graph(g))
-	
+
 def mean_clustering(g, normalized = False):
 	"""
 		Calculating the clustering coefficient for a graph. If given graph is directed, 
@@ -355,9 +360,9 @@ def effect_diameter(graph):
 
 def hop_counts(graph, cutoff = None, samples = 100000):
 	"""
-		Calculating the length (in number of hops) with nodes in the largest connected component 
-		using dijkstra algorithm. The input graph will be automaically turned into an 
-		undirected simple graph without loops.
+		Calculating the length (in number of hops) with nodes  using dijkstra algorithm. 
+		The input graph will be automaically turned into an undirected simple graph without loops.
+		Note the function only focus on the largest connected component if graph is disconnected.
 
 		To reduce the computation complexity, sampling method is used by default. Can use the argument
 		'samples' to control the number of samples.
@@ -387,8 +392,8 @@ def hop_counts(graph, cutoff = None, samples = 100000):
 			random.seed()
 			pairs = [ random.sample(p, 2) for s in xrange(n) ]
 			return(pairs)
-		pairs = gen_pairs(graph.nodes(), samples)
-		pair_lens = map(lambda x: nx.dijkstra_path_length(graph, x[0], x[1]), pairs)
+		pairs = gen_pairs(nx.connected_components(graph)[0], samples)
+		pair_lens = map(lambda x: nx.bidirectional_dijkstra(graph, x[0], x[1], weight = None)[0], pairs)
 		if cutoff: pair_lens = filter(lambda x: x <= cutoff, pair_lens)
 		for pl in iter(pair_lens):
 			cnt[pl] += 1
@@ -415,12 +420,12 @@ def dist_pack(graph, **kwargs):
 	for k in kwargs:
 		t.__setitem__(k, kwargs[k])
 	t.__setitem__('diameter', effect_diameter(graph))
-	t.__setitem__('hop_counts', hop_counts(graph))
+	t.__setitem__('hop_counts', hop_counts(graph, samples = 50000, cutoff = 10))
 	return(t)
 
 def easy_pack(graph, **kwargs):
 	"""
-		Packing the topological properties of given graph.
+		Packing the topological properties of a given graph.
 
 		Parameters:
 		-----------
@@ -429,7 +434,7 @@ def easy_pack(graph, **kwargs):
 				set prop_name = prop_value
 		Returns:
 		--------
-			a dictionary of topological property values keyed with property names
+			a dictionary of topological property, keyed with property names
 	"""
 	t = dict()
 	for k in kwargs:
