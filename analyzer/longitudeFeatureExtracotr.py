@@ -18,6 +18,45 @@ uniq_degree = lambda g: sorted(list(set(g.degree().values())))
 uniq_in_degree = lambda g: sorted(list(set(g.in_degree().values())))
 uniq_out_degree = lambda g: sorted(list(set(g.out_degree().values())))
 
+def descrete_bin_determiner(counter, bin_amount = 100):
+	"""docstring for bin_determiner"""
+	ks = sorted(counter.keys())
+	ks.reverse()
+	grid = set([ks[0]])
+	while len(ks):
+		grab_amount = 0
+		while grab_amount < bin_amount and len(ks):
+			grab_key = ks.pop()
+			grab_amount += counter[grab_key]
+		grid.add(grab_key)
+	return(sorted(list(grid)))
+
+def bin_counter(counter, bins = None, bin_amount = 100):
+	"""
+		bin_counter will merge the counter into bins
+		Parameters:
+		-----------
+			counter: Counter
+				the original counter (histogram)
+			bins: list, default = None
+				the bin vessel
+			bin_amount:
+				the expected number of elements within one bin
+		Returns:
+		--------
+			Counter, the indexed with new bins
+	"""
+	from collections import Counter
+	from numpy import linspace
+	from bisect import bisect_left
+	if not bins:
+		bins = descrete_bin_determiner(counter, bin_amount)
+	l = lambda x: bisect_left(bins, x)
+	merged_counter = Counter()
+	for k, v in counter.items():
+		merged_counter[bins[l(k)]] += v
+	return(merged_counter)
+
 def degree_count(g):
 	dCnt = Counter()
 	for dd in g.degree().itervalues(): dCnt[dd] += 1
@@ -47,9 +86,32 @@ def common_neighbor_num(g, n, m):
 		-------
 			int, the number of common neighbors
 	"""
-	n_neighbors = g.neighbors(n)
-	m_neighbors = g.neighbors(m)
-	return(len(set(n_neighbors).intersection(set(m_neighbors))))
+	n_neighbors = set(g.neighbors(n))
+	m_neighbors = set(g.neighbors(m))
+	l = len(n_neighbors & m_neighbors)
+	return(l)
+
+def all_common_neighbor_num(g):
+	"""
+		Count the common neighbor number for all pairs in grah g.
+		Note this function counts the common succeders if g is directed
+
+		Parameters:
+		-----------
+			g: Networkx Graph, NetworkX DiGraph
+		Returns:
+		--------
+			iterator, the number of common neighbors of all node pairs in g
+	"""
+	from collections import Counter
+	from itertools import combinations, starmap
+	mCnt = Counter()
+	nodes = g.nodes()
+	pairs = combinations(nodes, 2)
+	cNbhrs = lambda x, y: (set(g[x]) & set(g[y])).__len__()
+	for m in starmap(cNbhrs, pairs):
+		mCnt[m] += 1
+	return(mCnt.elements())
 
 def mutual_count(g, samples = None):
 	"""
@@ -65,6 +127,8 @@ def mutual_count(g, samples = None):
 		--------
 			a dictionary of counts, keyed with number of mutual neighbors
 	"""
+	nodes = g.nodes()
+	mCnt = Counter()
 	if samples > 0:
 		def gen_pairs(p, n):
 			"""
@@ -75,14 +139,16 @@ def mutual_count(g, samples = None):
 			random.seed()
 			pairs = [ random.sample(p, 2) for s in xrange(n) ]
 			return(pairs)
-		pairs = gen_pairs(g.nodes(), samples)
+		pairs = gen_pairs(nodes, samples)
 		pair_mutuals = map(lambda x: common_neighbor_num(g, x[0], x[1]), pairs)
+		for pm in iter(pair_mutuals):
+			mCnt[pm] += 1
 	else:
 		from itertools import combinations
-		pair_mutuals = map(lambda x: common_neighbor_num(g, x[0], x[1]), combinations(g.nodes(), 2))
-	mCnt = Counter()
-	for pm in iter(pair_mutuals):
-		mCnt[pm] += 1
+		#pair_mutuals = map(lambda x: common_neighbor_num(g, x[0], x[1]), combinations(nodes, 2))
+		pair_mutuals = all_common_neighbor_num(g)
+		for pm in pair_mutuals:
+			mCnt[pm] += 1
 	return(mCnt)
 
 def identifying_new_edges(g, h, loop_removed = True):
@@ -139,7 +205,6 @@ def identifying_attachment(g, h):
 	"""
 	existing_nodes = set(g.nodes())
 	new_edges = identifying_new_edges(g, h)
-	#attaching_edges = filter(lambda x: set(x).intersection(existing_nodes).__len__() == 1, new_edges)
 	attaching_edges = filter(lambda x: g.has_node(x[0]) ^ g.has_node(x[1]), new_edges)
 	return(attaching_edges)
 
@@ -158,13 +223,15 @@ def identifying_attachment_degree_histogram(g, h):
 	isDirected = g.is_directed()
 	hist = Counter()
 	existing_nodes = set(g.nodes())
-	for attaching_edge in iter(identifying_attachment(g, h)):
+	attachments = identifying_attachment(g, h)
+	print ("attachments %d" % len(attachments))
+	for attaching_edge in iter(attachments):
 		attached_node = filter(lambda x: existing_nodes.__contains__(x), attaching_edge)[0]
 		attached_node_degree = nx.in_degree(g, attached_node) if isDirected else nx.degree(g, attached_node)
 		hist[attached_node_degree] += 1
 	return(hist)
 
-def preferential_attachment_relative_prob(g, later_g):
+def preferential_attachment_relative_prob(g, later_g, enable_bins = False):
 	"""
 		Suppose h (in time t+1) is an evolved graph of graph g (in time t). 
 		Calculate the relative preferential attachmebt probability, R_k
@@ -190,11 +257,16 @@ def preferential_attachment_relative_prob(g, later_g):
 			identifying_attachment_degree_histogram
 	"""
 	N = float(g.order())
-	dc = degree_count(g)
+	dCnt = degree_count(g)
 	attachedCnt = identifying_attachment_degree_histogram(g, later_g)
+	print (dCnt)
+	print (attachedCnt)
+	if enable_bins:
+		binned_dCnt = bin_counter(dCnt, bin_amount = 100)
+		binned_attachedCnt = bin_counter(attachedCnt.iteritems, bins = binned_dCnt)
 	prefDict = dict()
 	for d, v in attachedCnt.iteritems():
-		prefDict[d] = v * N / dc[d]
+		prefDict[d] = v * N / dCnt[d]
 	return(prefDict)
 
 def identifying_closure_mutual_neighbors_histogram(g, h):
@@ -219,7 +291,9 @@ def identifying_closure_mutual_neighbors_histogram(g, h):
 def identifying_closure_distance_histogram(g, h):
 	"""
 		Suppose h is an evolved graph of graph g.
-		Count the number of enclosed node pairs that have d steps distance in g.
+		Count the number of d-steps enclosed node pairs.
+		A d-steps enclosed pairs (u, v) is a pair of nodes that one is d steps distant from another 
+		in graph g, and then a link (u, v) appears later (i.e., in graph h).
 
 		Parameters:
 		-----------
@@ -229,7 +303,6 @@ def identifying_closure_distance_histogram(g, h):
 		--------
 			a dictionary of count of enclosed nodes, keyed with the distance between the pair, d.
 	"""
-		#identifying the distance between the nodes that later connected by the closure edges.
 	hist = Counter()
 	existing_nodes = set(g.nodes())
 	for closure_edge in iter(identifying_closure(g, h)):
@@ -284,12 +357,87 @@ def longitude_pack(g, later_g, **kwargs):
 	t = dict()
 	for k in kwargs:
 		t.__setitem__(k, kwargs[k])
+
 	print ('processing cluster_prob')
-	t.__setitem__('cluster_prob', clustering_relative_prob(g, later_g))
+	cr = clustering_relative_prob(g, later_g)
+	t.__setitem__('cluster_prob', cr)
+
 	print ('processing pref_attach')
-	t.__setitem__('pref_attach', preferential_attachment_relative_prob(g, later_g))
+	pa = preferential_attachment_relative_prob(g, later_g)
+	t.__setitem__('pref_attach', pa)
+
 	print ('processing closure_dist')
-	t.__setitem__('closure_dist', identifying_closure_distance_histogram(g, later_g))
+	cd = identifying_closure_distance_histogram(g, later_g)
+	t.__setitem__('closure_dist', cd)
+	return(t)
+
+def pref_pack(g, later_g, **kwargs):
+	"""
+		Packing the longititude properties of a given graph
+		This pack includes: preferential attachment relative probability. 
+		Parameters:
+		-----------
+			g: NetworkX Graph, Networkx DiGraph
+				The original graph 
+			later_g: NetworkX Graph, Networkx DiGraph
+				The graph grow later. Technically, g is a subgraph of later_g
+		Returns:
+		--------
+			a dictionary of longitude properties, keyed with property names
+	"""
+	t = dict()
+	for k in kwargs:
+		t.__setitem__(k, kwargs[k])
+
+	print ('processing pref_attach')
+	pa = preferential_attachment_relative_prob(g, later_g)
+	t.__setitem__('pref_attach', pa)
+	return(t)
+
+def clust_pack(g, later_g, **kwargs):
+	"""
+		Packing the longititude properties of a given graph
+		This pack includes: clustering relative probability.
+
+		Parameters:
+		-----------
+			g: NetworkX Graph, Networkx DiGraph
+				The original graph 
+			later_g: NetworkX Graph, Networkx DiGraph
+				The graph grow later. Technically, g is a subgraph of later_g
+		Returns:
+		--------
+			a dictionary of longitude properties, keyed with property names
+	"""
+	t = dict()
+	for k in kwargs:
+		t.__setitem__(k, kwargs[k])
+	print ('processing cluster_prob')
+	cr = clustering_relative_prob(g, later_g)
+	t.__setitem__('cluster_prob', cr)
+	return(t)
+
+def closure_pack(g, later_g, **kwargs):
+	"""
+		Packing the longititude properties of a given graph
+		This pack includes: closure distance count.
+
+		Parameters:
+		-----------
+			g: NetworkX Graph, Networkx DiGraph
+				The original graph 
+			later_g: NetworkX Graph, Networkx DiGraph
+				The graph grow later. Technically, g is a subgraph of later_g
+		Returns:
+		--------
+			a dictionary of longitude properties, keyed with property names
+	"""
+	t = dict()
+	for k in kwargs:
+		t.__setitem__(k, kwargs[k])
+	print ('processing closure_dist')
+	cd = identifying_closure_distance_histogram(g, later_g)
+	t.__setitem__('closure_dist', cd)
 	return(t)
 
 def main(argv):
@@ -302,23 +450,32 @@ def main(argv):
 	asDirected = False
 	outputFile = None
 	dataName = None
+	packType = "all"
 	timestampformat = "%Y%m%d"
 	outputTimeFormat = "%Y-%m-%d"
+	base_duration = 60
+	extended_duration = 60
 	ofs = ","
 
 	def usage():
 		"""print the usage"""
 		print ("----------------------------------------")
-		print ("read the temporal edge list")
+		print ("read the temporal edge list, output the longitude properties")
 		print
 		print ("-h, --help: print this usage")
-		print ("-r ...: read edgelist")
-		print ("-i ...: read pickle")
-		print ("-o ...: outputfile")
+		print ("-i ...: path, read temporal edgelist")
+		print ("-b ...: int, the length of the base period")
+		print ("-e ...: int, the length of the extended period")
+		print ("-T [all|pa|cr|cd]: the type of pack, default = all")
+		print ("\tall = pa + cr + cd")
+		print ("\tpa = preferential attachment")
+		print ("\tcr = clustering relative prob.")
+		print ("\tcd = closure distance")
+		print ("-o ...: path, output .db file")
 		print ("----------------------------------------")
 
 	try:
-		opts, args = getopt.getopt(argv, "hi:o:", ["help"])
+		opts, args = getopt.getopt(argv, "hi:b:e:T:o:", ["help"])
 	except getopt.GetoptError:
 		print ("The given argv incorrect")
 		usage()
@@ -331,31 +488,71 @@ def main(argv):
 			sys.exit()
 		elif opt in ("-i"):
 			inputFile = arg
+		elif opt in ("-b"):
+			base_duration = int(arg)
+		elif opt in ("-e"):
+			extended_duration = int(arg)
+		elif opt in ("-T"):
+			packType = arg
 		elif opt in ("-o"):
 			outputFile = arg
 
-	eDict, tDict = read_temporal_edges(read_path = inputFile, as_directed = False, enable_verbose = True)
+	timeLoadStart = time.time()
+	eDict, tDict = read_temporal_edges(read_path = inputFile, as_directed = False, enable_verbose = False)
+	timeLoadEnd = time.time()
+	print ("[Load Time] %.2f sec" % (timeLoadEnd - timeLoadStart))
 
-	gSeries = EdgeSeries(is_directed = False, lifespan = 1000)	# set large lifespan to make it always be cumulative
+	# set large lifespan to make it always be cumulative
+	gSeries = EdgeSeries(is_directed = False, lifespan = 1000)	
 	gSeries.update(tDict)
 	gSeries.setup()
 
-	gSeries.next(step = 60)
+	gSeries.next(step = base_duration)
 	g = gSeries.forward()
-	gSeries.next(step = 60)
+	gSeries.next(step = extended_duration)
 	later_g = gSeries.forward()
+
+	print ("[GraphOrder] g: %d / later_g: %d" % (g.order(), later_g.order()))
+	print ("[GraphSize] g: %d / later_g: %d" % (g.size(), later_g.size()))
 
 	db = LiteDB()
 	fillinName = re.sub(".[^\.]+$", "", os.path.basename(inputFile)) if dataName is None else dataName
 	timeinfo = "--".join([ min(tDict.keys()).strftime("%Y-%m-%d"), max(tDict.keys()).strftime("%Y-%m-%d") ])
 	graph_key = "_".join([fillinName, timeinfo, 'd'])
 
-	if db.__contains__(graph_key) and not forceSave:
-		print ('updating in longitude mode')
-		db[graph_key].update(longitude_pack(g, later_g))
+	timePackStart = time.time()
+
+	if db.__contains__(graph_key):
+		if packType == "all":
+			print ('updating in longitude mode')
+			db[graph_key].update(longitude_pack(g, later_g, base_len = base_duration, extended_len = extended_duration))
+		elif packType == "pa":
+			print ('updating in pa mode')
+			db[graph_key].update(pref_pack(g, later_g, base_len = base_duration, extended_len = extended_duration))
+		elif packType == "cr":
+			print ('updating in cr mode')
+			db[graph_key].update(clust_pack(g, later_g, base_len = base_duration, extended_len = extended_duration))
+		elif packType == "cd":
+			print ('updating in cd mode')
+			db[graph_key].update(closure_pack(g, later_g, base_len = base_duration, extended_len = extended_duration))
+		else:
+			print ('do nothing')
 	else:
-		print ('writing in longitude mode')
-		db.__setitem__(graph_key, longitude_pack(g, later_g))
+		if packType == "all":
+			print ('writing in longitude mode')
+			db[graph_key] = longitude_pack(g, later_g, base_len = base_duration, extended_len = extended_duration)
+		elif packType == "pa":
+			print ('writing in pa mode')
+			db[graph_key] = pref_pack(g, later_g, base_len = base_duration, extended_len = extended_duration)
+		elif packType == "cr":
+			print ('writing in cr mode')
+			db[graph_key] = clust_pack(g, later_g, base_len = base_duration, extended_len = extended_duration)
+		elif packType == "cd":
+			print ('writing in cd mode')
+			db[graph_key] = closure_pack(g, later_g, base_len = base_duration, extended_len = extended_duration)
+
+	timePackEnd = time.time()
+	print ("[Pack Time] %.2f sec" % (timePackEnd - timePackStart))
 
 	db.save(outputFile)
 

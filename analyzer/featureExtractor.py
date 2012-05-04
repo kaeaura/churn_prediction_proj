@@ -221,6 +221,77 @@ def powerlaw_fit(xdata, ydata, err = 0.1):
 
 	return(amp, index, indexErr)
 
+def get_resilience_fraction(g, steps = 1000, mode = 'in'):
+	"""docstring for get_resilience_fraction"""
+	n = float(g.order())
+	h = g.copy()
+	step_width = max(1, n / steps)
+	if mode == 'in':
+		sorted_nodes = sorted(g.in_degree().items(), key = lambda x: x[1])
+	else:
+		sorted_nodes = sorted(g.out_degree().items(), key = lambda x: x[1])
+	sorted_node_index = map(lambda n: n[0], sorted_nodes)
+	fraction = [1]
+	while len(sorted_node_index):
+		rip = []
+		while len(rip) < step_width: 
+			if len(sorted_node_index):
+				rip.append(sorted_node_index.pop())
+			else:
+				break
+		h.remove_nodes_from(rip)
+		ws = nx.weakly_connected_components(h)
+		w = ws[0].__len__() if ws else 0
+		fraction.append(w / n)
+	return(dict(zip(range(len(fraction)), fraction)))
+
+def get_degree_rate_distribution(g):
+	"""docstring for bidirectional_overlap"""
+	i = g.in_degree()
+	o = g.out_degree()
+	r = [i[n]/float(o[n]) for n in g.nodes() if o[n]]
+	r_size = float(len(r))
+
+	from numpy import linspace, concatenate
+	x_step = concatenate((linspace(0.001, 1, num = 200), linspace(1, 10, num = 100), linspace(10, 1000, 100)))
+	xdata, ydata = list(), list()
+	xdata = list(x_step)
+	ydata = [len(filter(lambda x: x <= sp, r)) / r_size for sp in x_step]
+	return(xdata, ydata)
+
+def get_link_weight_distribution(g, weight = 'weight'):
+	"""docstring for get_link_weight_distribution"""
+	w = nx.get_edge_attributes(g, weight).values()
+	from collections import Counter
+	from numpy import array
+	wc = Counter()
+	for ww in iter(w):
+		wc[ww] += 1
+	wc = dict(wc)
+	wSum = sum(wc.values())
+	xdata = wc.keys()
+	xdata.sort()
+	xdata = array(xdata)
+	ydata = list()
+	for k in xdata: ydata.append(sum([wc[kk] for kk in xdata[xdata >= k]]))
+	ydata = array(map(lambda x: float(x) / wSum, ydata))
+	return(xdata, ydata)
+
+def get_degree_overlap_ratio(g):
+	order = g.order()
+	i = g.in_degree()
+	o = g.out_degree()
+	get_index = lambda x: x[0]
+	sorted_i_index = map(get_index, sorted(i.items(), key = lambda x: x[1], reverse = True))
+	sorted_o_index = map(get_index, sorted(o.items(), key = lambda x: x[1], reverse = True))
+	from numpy import linspace
+	top_nums = map(int, linspace(0, order, num = 101))
+	def intersect_fraction(x, y):
+		return(len(set(x).intersection(set(y))) / float(len(x)) if len(x) else 0)
+	overlaps = [ intersect_fraction(sorted_i_index[:top_num], sorted_o_index[:top_num]) for top_num in top_nums ]
+	overlaps = dict(zip(range(len(overlaps)), overlaps))
+	return(overlaps)
+
 def get_degree_distribution(g, mode = 'both', is_CDF = True):
 	""" 
 		The discrete degree distribution. Similar to the histogram shows the possible degrees k,
@@ -313,6 +384,7 @@ def get_degree_correlation(g, method = 'average', mode = 'both'):
 		--------
 			xdata, ydata, a 2-tuple of array, (k, <Knn>(k)), where <Knn>(k) denotes as the average/median degree
 	"""
+	# re implement with the function = nx.average_degree_connectivity
 	if mode == 'both':
 		d = g.degree()
 		k = nx.average_neighbor_degree(g)
@@ -420,9 +492,66 @@ def dist_pack(graph, **kwargs):
 	for k in kwargs:
 		t.__setitem__(k, kwargs[k])
 	t.__setitem__('diameter', effect_diameter(graph))
-	t.__setitem__('hop_counts', hop_counts(graph, samples = 50000, cutoff = 10))
+	t.__setitem__('hop_counts', hop_counts(graph, samples = 10000))
 	return(t)
 
+def degree_seq_pack(graph, **kwargs):
+	t = dict()
+	for k in kwargs:
+		t.__setitem__(k, kwargs[k])
+	if graph.is_directed():
+		t.__setitem__('inDegSeq', graph.in_degree().values())
+		t.__setitem__('outDegSeq', graph.out_degree().values())
+	t.__setitem__('degSeq', graph.degree().values())
+	return(t)
+
+def degree_pack(graph, **kwargs):
+	t = dict()
+	for k in kwargs:
+		t.__setitem__(k, kwargs[k])
+	t.__setitem__('order', graph.order())
+	t.__setitem__('size', graph.size())
+	t.__setitem__('degree', average_degree(graph))
+	if graph.is_directed():
+		t.__setitem__('degcor', degcor(graph))
+		xdata, ydata = get_degree_distribution(graph, mode = 'in')
+		t.__setitem__('inDegDistr_x', xdata)
+		t.__setitem__('inDegDistr_y', ydata)
+		t.__setitem__('inDegDistr_fit', powerlaw_fit(xdata, ydata))
+		xdata, ydata = get_degree_distribution(graph, mode = 'out')
+		t.__setitem__('outDegDistr_x', xdata)
+		t.__setitem__('outDegDistr_y', ydata)
+		t.__setitem__('outDegDistr_fit', powerlaw_fit(xdata, ydata))
+		xdata, ydata = get_degree_rate_distribution(graph)
+		t.__setitem__('degRateDistr_x', xdata)
+		t.__setitem__('degRateDistr_y', ydata)
+		t.__setitem__('degOverlapRatio', get_degree_overlap_ratio(graph))
+	if nx.get_edge_attributes(graph, 'weight'):
+		xdata, ydata = get_link_weight_distribution(graph)
+		t.__setitem__('linkWeightDistr_x', xdata)
+		t.__setitem__('linkWeightDistr_y', ydata)
+	xdata, ydata = get_degree_distribution(graph)
+	t.__setitem__('degDistr_x', xdata)
+	t.__setitem__('degDistr_y', ydata)
+	t.__setitem__('degDistr_fit', powerlaw_fit(xdata, ydata))
+	return(t)
+
+def knn_pack(graph, *kwargs):
+	t = dict()
+	for k in kwargs:
+		t.__setitem__(k, kwargs[k])
+	t.__setitem__('asr', nx.degree_assortativity_coefficient(graph))
+	t.__setitem__('weighted_asr', nx.degree_assortativity_coefficient(graph, weight = 'weight'))
+	if graph.is_directed():
+		t.__setitem__('knn', nx.average_degree_connectivity(graph, source = 'out', target = 'in'))
+		if len(nx.get_edge_attributes(graph, 'weight')):
+			t.__setitem__('weighted_knn', nx.average_degree_connectivity(graph, source = 'out', target = 'in', weight = 'weight'))
+	else:
+		t.__setitem__('knn', nx.average_degree_connectivity(graph))
+		if len(nx.get_edge_attributes(graph, 'weight')):
+			t.__setitem__('weighted_knn', nx.average_degree_connectivity(graph, weight = 'weight'))
+	return(t)
+	
 def easy_pack(graph, **kwargs):
 	"""
 		Packing the topological properties of a given graph.
@@ -460,6 +589,14 @@ def easy_pack(graph, **kwargs):
 #		t.__setitem__('outDegDistr_x', xdata)
 #		t.__setitem__('outDegDistr_y', ydata)
 #		t.__setitem__('outDegDistr_fit', powerlaw_fit(xdata, ydata))
+	return(t)
+
+def frac_pack(graph, **kwargs):
+	t = dict()
+	for k in kwargs:
+		t.__setitem__(k, kwargs[k])
+	t.__setitem__('inFrac_dict', get_resilience_fraction(graph, mode = 'in'))
+	t.__setitem__('outFrac_dict', get_resilience_fraction(graph, mode = 'out'))
 	return(t)
 
 def pack(graph, **kwargs):
@@ -773,9 +910,21 @@ def main(argv):
 				if packType == 'easy':
 					print ('updating in easy-pack mode')
 					db[graph_key].update(easy_pack(graph, **metalabels))
+				elif packType == 'degree_seq':
+					print ('updating in degree-seq-pack mode')
+					db[graph_key].update(degree_seq_pack(graph, **metalabels))
+				elif packType == 'degree':
+					print ('updating in degree-pack mode')
+					db[graph_key].update(degree_pack(graph, **metalabels))
 				elif packType == 'dist':
 					print ('updating in dist-pack mode')
 					db[graph_key].update(dist_pack(graph, **metalabels))
+				elif packType == 'frac':
+					print ('updating in frac-pack mode')
+					db[graph_key].update(frac_pack(graph, **metalabels))
+				elif packType == 'knn':
+					print ('updating in knn-pack mode')
+					db[graph_key].update(knn_pack(graph, **metalabels))
 				else:
 					print ('updating in normal-pack mode')
 					db[graph_key].update(pack(graph, **metalabels))
@@ -783,9 +932,21 @@ def main(argv):
 				if packType == 'easy':
 					print ("writing in easy-pack mode")
 					db.__setitem__(graph_key, easy_pack(graph, **metalabels))
+				elif packType == 'degree_seq':
+					print ('writing in degree-seq-pack mode')
+					db.__setitem__(graph_key, degree_seq_pack(graph, **metalabels))
+				elif packType == 'degree':
+					print ('writing in degree-pack mode')
+					db.__setitem__(graph_key, degree_pack(graph, **metalabels))
 				elif packType == 'dist':
 					print ("writing in dist-pack mode")
 					db.__setitem__(graph_key, dist_pack(graph, **metalabels))
+				elif packType == 'frac':
+					print ("writing in frac-pack mode")
+					db.__setitem__(graph_key, frac_pack(graph, **metalabels))
+				elif packType == 'knn':
+					print ("writing in knn-pack mode")
+					db.__setitem__(graph_key, knn_pack(graph, **metalabels))
 				else:
 					print ("writing in normal-pack mode")
 					db.__setitem__(graph_key, pack(graph, **metalabels))

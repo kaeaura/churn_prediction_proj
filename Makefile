@@ -52,10 +52,21 @@ STEPWIDTH = 1
 #LIFESPANS = 500
 #LIFESPANSS = 500
 
-sweave: doc/feature_report.Rnw
-	cd doc ;\
-	R CMD Sweave feature_report.Rnw ; \
-	test -e feature_report.tex && pdflatex feature_report.tex; pdflatex feature_report.tex ;
+#sweave: doc/feature_report.Rnw
+#	cd doc ;\
+#	R CMD Sweave feature_report.Rnw ; \
+#	test -e feature_report.tex && pdflatex feature_report.tex; pdflatex feature_report.tex ;
+
+sweave:
+	cd doc/interactions_over_platforms ;\
+	for rnwFile in `ls *.Rnw` ; do \
+		R CMD Sweave $${rnwFile} ; \
+	done; \
+	pdflatex main.tex; \
+	bibtex main; \
+	pdflatex main.tex; \
+	pdflatex main.tex; 
+	
 
 clean:
 	rm -f *.pyc

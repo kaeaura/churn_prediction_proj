@@ -38,7 +38,6 @@ class LiteDB(dict):
 		deepkeys = set.intersection(*[set(self[k].keys()) for k in self.iterkeys()]) if self.__len__() else set()
 		return(deepkeys)
 	def tolist(self, path, *args):
-		#deepkeys = set.intersection(*[set(self[k].keys()) for k in self.iterkeys()])
 		deepkeys = self.showkeys()
 		if len(args):
 			legal_args = filter(lambda x: x in deepkeys, list(args))
@@ -51,13 +50,22 @@ class LiteDB(dict):
 				def l2str(l, joiner = "/"): return(joiner.join(map(str, l)))
 				fields = [l2str(self[k][l]) if hasattr(self[k][l], "__iter__") else self[k][l] for l in legal_args]
 				F.write("%s,%s\n" % (k, l2str(fields, joiner = ",")))
+	def tofiles(self, path, *args):
+		deepkeys = self.showkeys()
+		arg = args[0]
+		print (arg)
+		print (deepkeys)
+		assert(len(args) == 1 and deepkeys.__contains__(arg))
+		for k in self.iterkeys():
+			with open(path, 'w') as F:
+				F.write("%s" % "\n".join(map(str, self[k][arg])))
 
 def main(argv):
 	"""manipulation db via os"""
 	inputFiles = list()
 	inputDirs = list()
 	outputFile = None
-	asList = False
+	saveForm = 'db'
 	enable_listKeys = False
 	shownKeys = list()
 	shownAttributes = list()
@@ -79,7 +87,7 @@ def main(argv):
 		print ("\t-a: the column names for the csv files (only valid with -w arg)")
 
 	try:
-		opts, args = getopt.getopt(argv, "hi:I:o:wa:ls:S:", ["help"])
+		opts, args = getopt.getopt(argv, "hi:I:o:w:a:ls:S:", ["help"])
 	except getopt.GetoptError, err:
 		print ("The given argv incorrect")
 		usage()
@@ -103,7 +111,7 @@ def main(argv):
 		elif opt in ("-S"):
 			shownAttributes.append(arg)
 		elif opt in ("-w"):
-			asList = True
+			saveForm = arg
 		elif opt in ("-a"):
 			argList.append(arg)
 
@@ -145,14 +153,22 @@ def main(argv):
 				print (db[k][showKey])
 				print 
 
+	#print ('saveform %s' % saveForm)
 	if outputFile is not None:
-		if asList:
+		if saveForm == 'csv':
 			if len(argList):
 				db.tolist(outputFile, *argList)
 			else:
 				db.tolist(outputFile)
-		else:
+		elif saveForm == 'csvs':
+			if len(argList):
+				db.tofiles(outputFile, *argList)
+			else:
+				db.tofiles(outputFile)
+		elif saveForm == 'db':
 			db.save(outputFile)
+		else:
+			print ("incorrect saveForm")
 
 if __name__ == "__main__":
 	main(sys.argv[1:])
